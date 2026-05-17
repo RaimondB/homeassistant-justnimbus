@@ -57,6 +57,9 @@ scripts/ci fix      # auto-fix lint/format issues
 scripts/ci test     # tests only
 ```
 
+See [docs/CI.md](docs/CI.md) for the full CI workflow and the pre-push
+checklist (verify the PR isn't merged, run local CI, then push).
+
 ### Probing a real device (no Home Assistant)
 
 `scripts/probe` connects to the JustNimbus MQTT broker exactly like the
