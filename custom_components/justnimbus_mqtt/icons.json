@@ -1,0 +1,21 @@
+{
+  "entity": {
+    "sensor": {
+      "pump_pressure": { "default": "mdi:gauge" },
+      "reservoir_temp": { "default": "mdi:thermometer-water" },
+      "water_volume": { "default": "mdi:water" },
+      "water_height": { "default": "mdi:waves-arrow-up" },
+      "waterflow_in": { "default": "mdi:water-plus" },
+      "waterflow_out": { "default": "mdi:water-minus" },
+      "water_used_hour": { "default": "mdi:water-pump" },
+      "water_used_24h": { "default": "mdi:water-pump" },
+      "water_used_total": { "default": "mdi:water-pump" },
+      "water_added_hour": { "default": "mdi:weather-rainy" },
+      "water_added_24h": { "default": "mdi:weather-rainy" },
+      "water_added_total": { "default": "mdi:weather-rainy" }
+    },
+    "binary_sensor": {
+      "overflow": { "default": "mdi:water-alert" }
+    }
+  }
+}

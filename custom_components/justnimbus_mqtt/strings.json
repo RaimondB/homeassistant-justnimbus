@@ -1,0 +1,67 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "JustNimbus MQTT",
+        "description": "Configure the MQTT topic prefix your JustNimbus device publishes to.",
+        "data": {
+          "topic_prefix": "MQTT topic prefix",
+          "device_name": "Device name"
+        },
+        "data_description": {
+          "topic_prefix": "The root topic your JustNimbus device publishes to (default: justnimbus).",
+          "device_name": "Friendly name shown in Home Assistant."
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This topic prefix is already configured.",
+      "mqtt_not_configured": "The MQTT integration is not configured. Set it up first."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "pump_pressure": {
+        "name": "Pump pressure"
+      },
+      "reservoir_temp": {
+        "name": "Reservoir temperature"
+      },
+      "water_volume": {
+        "name": "Reservoir volume"
+      },
+      "water_height": {
+        "name": "Water height"
+      },
+      "waterflow_in": {
+        "name": "Water flow in"
+      },
+      "waterflow_out": {
+        "name": "Water flow out"
+      },
+      "water_used_hour": {
+        "name": "Water used (last hour)"
+      },
+      "water_used_24h": {
+        "name": "Water used (24 h)"
+      },
+      "water_used_total": {
+        "name": "Water used (total)"
+      },
+      "water_added_hour": {
+        "name": "Water added (last hour)"
+      },
+      "water_added_24h": {
+        "name": "Water added (24 h)"
+      },
+      "water_added_total": {
+        "name": "Water added (total)"
+      }
+    },
+    "binary_sensor": {
+      "overflow": {
+        "name": "Overflow"
+      }
+    }
+  }
+}

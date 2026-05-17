@@ -1,0 +1,7 @@
+# Pin pytest-homeassistant-custom-component: it transitively pins an exact
+# Home Assistant (and thus cryptography/aiohttp/pytest). Leaving it unpinned
+# lets pip backtrack into ancient HA when any constraint conflicts.
+# Do NOT also pin cryptography/aiohttp/pytest here — HA pins them; duplicate
+# constraints trigger the same backtrack.
+pytest-homeassistant-custom-component==0.13.205
+ruff
