@@ -16,6 +16,24 @@
           "topic_prefix": "The root topic your JustNimbus device publishes to (default: justnimbus).",
           "device_name": "Friendly name shown in Home Assistant."
         }
+      },
+      "reservoir": {
+        "title": "Reservoir (\"zak\")",
+        "description": "Pick a standard rainwater bag for the fill level / full sensor, or Custom to enter dimensions. Choose Unknown to skip — those sensors then stay unavailable until you set this via Configure.",
+        "data": {
+          "reservoir_preset": "Reservoir",
+          "reservoir_length_mm": "Reservoir length (mm)",
+          "reservoir_width_mm": "Reservoir width (mm)",
+          "reservoir_height_mm": "Reservoir height (mm)",
+          "reservoir_volume_l": "Reservoir capacity (liter)"
+        },
+        "data_description": {
+          "reservoir_preset": "Standard bag, Custom (use the boxes), or Unknown (fill level stays unavailable).",
+          "reservoir_length_mm": "Bag length in millimetres (used only with Custom).",
+          "reservoir_width_mm": "Bag width in millimetres (used only with Custom).",
+          "reservoir_height_mm": "Bag height in millimetres — the water height at which the reservoir counts as full (used only with Custom).",
+          "reservoir_volume_l": "Total bag capacity in litres — used as 100% for the fill level (used only with Custom)."
+        }
       }
     },
     "abort": {
@@ -26,9 +44,9 @@
     "step": {
       "init": {
         "title": "Reservoir (\"zak\")",
-        "description": "Pick a standard rainwater bag, or choose Custom and enter the dimensions below. A standard preset uses its own values and ignores the boxes.",
+        "description": "Pick a standard rainwater bag, Custom (enter the boxes), or Unknown (the fill level / full sensor stay unavailable). A standard preset uses its own values and ignores the boxes.",
         "data": {
-          "reservoir_preset": "Standard reservoir",
+          "reservoir_preset": "Reservoir",
           "reservoir_length_mm": "Reservoir length (mm)",
           "reservoir_width_mm": "Reservoir width (mm)",
           "reservoir_height_mm": "Reservoir height (mm)",

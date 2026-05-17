@@ -23,11 +23,13 @@ pytest_plugins = "pytest_homeassistant_custom_component"
 
 from custom_components.justnimbus_mqtt.const import (  # noqa: E402
     CONF_DEVICE_NAME,
+    CONF_RESERVOIR_PRESET,
     CONF_TOPIC_PREFIX,
     DEFAULT_DEVICE_NAME,
     DEFAULT_PORT,
     DEFAULT_TOPIC_PREFIX,
     DOMAIN,
+    RESERVOIR_PRESETS,
 )
 
 _TEST_HOST = "192.168.1.100"
@@ -98,6 +100,12 @@ def config_entry(hass):
             CONF_PORT: DEFAULT_PORT,
             CONF_TOPIC_PREFIX: DEFAULT_TOPIC_PREFIX,
             CONF_DEVICE_NAME: DEFAULT_DEVICE_NAME,
+        },
+        # Configured reservoir so the derived fill/full entities have
+        # values; the "unknown" path is covered by dedicated tests.
+        options={
+            **RESERVOIR_PRESETS["standard_4500"],
+            CONF_RESERVOIR_PRESET: "standard_4500",
         },
         unique_id=f"{_TEST_HOST}:{DEFAULT_PORT}:{DEFAULT_TOPIC_PREFIX}",
     )

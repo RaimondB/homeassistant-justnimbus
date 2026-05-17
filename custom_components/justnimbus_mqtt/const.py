@@ -28,6 +28,8 @@ DEFAULT_RESERVOIR_VOLUME: Final = 4500
 
 CONF_RESERVOIR_PRESET: Final = "reservoir_preset"
 PRESET_CUSTOM: Final = "custom"
+# No reservoir configured: the derived fill/full entities stay "unknown".
+PRESET_UNKNOWN: Final = "unknown"
 
 # The two standard residential rainwater bags ("zak"). Dimensions are the
 # typical footprint; the litre figure is the rated capacity (the bag is not

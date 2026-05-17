@@ -18,7 +18,6 @@ from .const import (
     CONF_DEVICE_NAME,
     CONF_RESERVOIR_HEIGHT,
     CONF_TOPIC_PREFIX,
-    DEFAULT_RESERVOIR_HEIGHT,
     DOMAIN,
     signal_message,
 )
@@ -37,9 +36,9 @@ async def async_setup_entry(
     """Set up JustNimbus MQTT binary sensors."""
     prefix = entry.data[CONF_TOPIC_PREFIX]
     device_name = entry.data[CONF_DEVICE_NAME]
-    reservoir_height_mm = entry.options.get(
-        CONF_RESERVOIR_HEIGHT, DEFAULT_RESERVOIR_HEIGHT
-    )
+    # No default: an unconfigured / "unknown" reservoir has no height, so
+    # the full sensor stays unknown rather than guessing.
+    reservoir_height_mm = entry.options.get(CONF_RESERVOIR_HEIGHT)
     async_add_entities(
         [
             JustNimbusOverflowSensor(
@@ -118,7 +117,7 @@ class JustNimbusReservoirFullSensor(BinarySensorEntity):
         entry_id: str,
         device_name: str,
         topic_prefix: str,
-        reservoir_height_mm: int,
+        reservoir_height_mm: int | None,
     ) -> None:
         self._entry_id = entry_id
         self._topic = f"{topic_prefix}/{_HEIGHT_TOPIC_SUFFIX}"
@@ -133,6 +132,10 @@ class JustNimbusReservoirFullSensor(BinarySensorEntity):
 
     async def async_added_to_hass(self) -> None:
         """Register dispatcher listener."""
+
+        # No reservoir height configured ("unknown"): stay unknown.
+        if not self._reservoir_height_mm:
+            return
 
         @callback
         def _message_received(topic: str, payload: str) -> None:
