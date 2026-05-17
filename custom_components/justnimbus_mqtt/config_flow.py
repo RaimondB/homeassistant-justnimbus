@@ -12,6 +12,9 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -78,12 +81,14 @@ class JustNimbusMqttConfigFlow(ConfigFlow, domain=DOMAIN):
         return JustNimbusMqttOptionsFlow(config_entry)
 
 
-def _positive_int(value: object) -> int:
-    """Coerce to an int and reject non-positive reservoir dimensions."""
-    ivalue = int(value)  # type: ignore[arg-type]
-    if ivalue <= 0:
-        raise vol.Invalid("must be a positive number")
-    return ivalue
+# A serializable positive-mm/litre input. A bare callable here is NOT
+# JSON-serializable for the frontend (voluptuous_serialize), which made the
+# options form fail to load ("config flow could not be loaded"); selectors
+# serialize cleanly.
+def _dimension() -> NumberSelector:
+    return NumberSelector(
+        NumberSelectorConfig(min=1, step=1, mode=NumberSelectorMode.BOX)
+    )
 
 
 _PRESET_LABELS: dict[str, str] = {
@@ -114,11 +119,12 @@ class JustNimbusMqttOptionsFlow(OptionsFlow):
             if preset in RESERVOIR_PRESETS:
                 resolved = dict(RESERVOIR_PRESETS[preset])
             else:
+                # NumberSelector yields floats; store ints.
                 resolved = {
-                    CONF_RESERVOIR_LENGTH: user_input[CONF_RESERVOIR_LENGTH],
-                    CONF_RESERVOIR_WIDTH: user_input[CONF_RESERVOIR_WIDTH],
-                    CONF_RESERVOIR_HEIGHT: user_input[CONF_RESERVOIR_HEIGHT],
-                    CONF_RESERVOIR_VOLUME: user_input[CONF_RESERVOIR_VOLUME],
+                    CONF_RESERVOIR_LENGTH: int(user_input[CONF_RESERVOIR_LENGTH]),
+                    CONF_RESERVOIR_WIDTH: int(user_input[CONF_RESERVOIR_WIDTH]),
+                    CONF_RESERVOIR_HEIGHT: int(user_input[CONF_RESERVOIR_HEIGHT]),
+                    CONF_RESERVOIR_VOLUME: int(user_input[CONF_RESERVOIR_VOLUME]),
                 }
             resolved[CONF_RESERVOIR_PRESET] = preset
             return self.async_create_entry(title="", data=resolved)
@@ -149,23 +155,23 @@ class JustNimbusMqttOptionsFlow(OptionsFlow):
                         default=_default(
                             CONF_RESERVOIR_LENGTH, DEFAULT_RESERVOIR_LENGTH
                         ),
-                    ): _positive_int,
+                    ): _dimension(),
                     vol.Required(
                         CONF_RESERVOIR_WIDTH,
                         default=_default(CONF_RESERVOIR_WIDTH, DEFAULT_RESERVOIR_WIDTH),
-                    ): _positive_int,
+                    ): _dimension(),
                     vol.Required(
                         CONF_RESERVOIR_HEIGHT,
                         default=_default(
                             CONF_RESERVOIR_HEIGHT, DEFAULT_RESERVOIR_HEIGHT
                         ),
-                    ): _positive_int,
+                    ): _dimension(),
                     vol.Required(
                         CONF_RESERVOIR_VOLUME,
                         default=_default(
                             CONF_RESERVOIR_VOLUME, DEFAULT_RESERVOIR_VOLUME
                         ),
-                    ): _positive_int,
+                    ): _dimension(),
                 }
             ),
         )
