@@ -20,7 +20,6 @@ views:
     path: justnimbus
     type: sections
     sections:
-      # ---------------- Top status bar ----------------
       - type: grid
         cards:
           - type: glance
@@ -35,40 +34,6 @@ views:
                 name: Error
               - entity: sensor.justnimbus_water_used_total
                 name: Total used (L)
-
-      # ---------------- POMP (pump) ----------------
-      - type: grid
-        cards:
-          - type: heading
-            heading: Pomp
-          - type: gauge
-            entity: sensor.justnimbus_pump_pressure
-            name: Pomp druk
-            unit: bar
-            min: 0
-            max: 3
-            needle: true
-            severity:
-              green: 0
-              yellow: 1.8
-              red: 2.3
-          - type: gauge
-            entity: sensor.justnimbus_water_flow_out
-            name: Uitstroom pomp
-            min: 0
-            max: 60
-            needle: true
-          - type: gauge
-            entity: sensor.justnimbus_reservoir_temperature
-            name: Temperatuur buffer
-            unit: "°C"
-            min: 0
-            max: 25
-            needle: true
-            severity:
-              green: 0
-              yellow: 18
-              red: 22
           - type: entities
             title: Pomp statistiek
             entities:
@@ -84,8 +49,34 @@ views:
                 name: Pompstarts totaal
               - entity: binary_sensor.justnimbus_pump
                 name: Pomp actief
-
-      # ---------------- BUFFER (reservoir) ----------------
+      - type: grid
+        cards:
+          - type: heading
+            heading: Pomp
+          - type: gauge
+            entity: sensor.justnimbus_pump_pressure
+            name: Pomp druk
+            unit: bar
+            min: 0
+            needle: true
+            max: 4.5
+            severity:
+              green: -3
+              yellow: 1
+              red: 3
+          - type: gauge
+            entity: sensor.justnimbus_water_flow_out
+            name: Uitstroom pomp
+            min: 0
+            max: 60
+            needle: true
+          - type: gauge
+            entity: sensor.justnimbus_reservoir_temperature
+            name: Temperatuur buffer
+            unit: °C
+            min: 0
+            max: 25
+            needle: true
       - type: grid
         cards:
           - type: heading
@@ -93,14 +84,14 @@ views:
           - type: gauge
             entity: sensor.justnimbus_reservoir_fill_level
             name: Indicatie volume buffer
-            unit: "%"
+            unit: '%'
             min: 0
             max: 100
             needle: true
             severity:
+              green: 20
+              yellow: 10
               red: 0
-              yellow: 20
-              green: 50
           - type: entities
             title: Buffer
             entities:
@@ -114,8 +105,6 @@ views:
                 name: Vulniveau bereikt
               - entity: binary_sensor.justnimbus_overflow
                 name: Overflow
-
-      # ---------------- BIJVULLEN (mains top-up) ----------------
       - type: grid
         cards:
           - type: heading
