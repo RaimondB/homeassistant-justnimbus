@@ -46,6 +46,9 @@ class JustNimbusSensorDescription(SensorEntityDescription):
     topic_suffix: str
     # True: store the raw string payload (status/mode/actuator topics).
     text: bool = False
+    # True: start at 0 instead of "unknown" — for flow rates the device
+    # only publishes while active, so "no message" genuinely means 0.
+    default_zero: bool = False
 
 
 SENSOR_DESCRIPTIONS: tuple[JustNimbusSensorDescription, ...] = (
@@ -92,6 +95,7 @@ SENSOR_DESCRIPTIONS: tuple[JustNimbusSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfVolumeFlowRate.LITERS_PER_MINUTE,
         device_class=SensorDeviceClass.VOLUME_FLOW_RATE,
         state_class=SensorStateClass.MEASUREMENT,
+        default_zero=True,
     ),
     JustNimbusSensorDescription(
         key="waterflow_out",
@@ -100,6 +104,7 @@ SENSOR_DESCRIPTIONS: tuple[JustNimbusSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfVolumeFlowRate.LITERS_PER_MINUTE,
         device_class=SensorDeviceClass.VOLUME_FLOW_RATE,
         state_class=SensorStateClass.MEASUREMENT,
+        default_zero=True,
     ),
     JustNimbusSensorDescription(
         key="water_used_hour",
@@ -247,6 +252,8 @@ class JustNimbusMqttSensor(RestoreSensor):
         self._entry_id = entry_id
         self._topic = f"{topic_prefix}/{description.topic_suffix}"
         self._attr_unique_id = f"{entry_id}_{description.key}"
+        if description.default_zero:
+            self._attr_native_value = 0.0
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
             name=device_name,
@@ -256,7 +263,9 @@ class JustNimbusMqttSensor(RestoreSensor):
 
     async def async_added_to_hass(self) -> None:
         """Restore the last value, then register the dispatcher listener."""
-        if (last := await self.async_get_last_sensor_data()) is not None:
+        if (
+            last := await self.async_get_last_sensor_data()
+        ) is not None and last.native_value is not None:
             self._attr_native_value = last.native_value
 
         @callback

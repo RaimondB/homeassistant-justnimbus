@@ -46,6 +46,13 @@ async def test_sensor_count(hass: HomeAssistant, loaded_entry) -> None:
     assert len(hass.states.async_all("sensor")) == 19
 
 
+async def test_waterflow_defaults_to_zero(hass: HomeAssistant, loaded_entry) -> None:
+    """Flow sensors read 0 (pump idle) before any message, not 'unknown'."""
+    for key in ("waterflow_in", "waterflow_out"):
+        state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, key))
+        assert state.state == "0.0"
+
+
 async def test_pump_starts_total(hass: HomeAssistant, loaded_entry) -> None:
     """Numeric pump-statistics topic maps to a sensor."""
     _fire(
