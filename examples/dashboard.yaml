@@ -1,0 +1,141 @@
+# JustNimbus MQTT — example Lovelace dashboard
+#
+# Recreates the device's own DASHBOARD (POMP / BUFFER / BIJVULLEN) from the
+# entities this integration exposes.
+#
+# How to use:
+#   Settings -> Dashboards -> (+ Add) -> three-dots -> "Edit in YAML" /
+#   "Raw configuration editor", then paste a view using the cards below
+#   (or paste this whole file as a new dashboard's raw config).
+#
+# IMPORTANT — entity ids: these assume the device name "JustNimbus"
+# (entities like sensor.justnimbus_pump_pressure). If you named the device
+# differently, the prefix changes. Verify each id in
+# Developer Tools -> States and adjust. Entities not published by your
+# firmware will simply render as "unavailable".
+
+title: JustNimbus
+views:
+  - title: Rainwater
+    path: justnimbus
+    type: sections
+    sections:
+      # ---------------- Top status bar ----------------
+      - type: grid
+        cards:
+          - type: glance
+            title: System
+            show_state: true
+            entities:
+              - entity: sensor.justnimbus_system_status
+                name: Status
+              - entity: sensor.justnimbus_system_mode
+                name: Mode
+              - entity: binary_sensor.justnimbus_system_error
+                name: Error
+              - entity: sensor.justnimbus_water_used_total
+                name: Total used (L)
+
+      # ---------------- POMP (pump) ----------------
+      - type: grid
+        cards:
+          - type: heading
+            heading: Pomp
+          - type: gauge
+            entity: sensor.justnimbus_pump_pressure
+            name: Pomp druk
+            unit: bar
+            min: 0
+            max: 3
+            needle: true
+            severity:
+              green: 0
+              yellow: 1.8
+              red: 2.3
+          - type: gauge
+            entity: sensor.justnimbus_water_flow_out
+            name: Uitstroom pomp
+            min: 0
+            max: 60
+            needle: true
+          - type: gauge
+            entity: sensor.justnimbus_reservoir_temperature
+            name: Temperatuur buffer
+            unit: "°C"
+            min: 0
+            max: 25
+            needle: true
+            severity:
+              green: 0
+              yellow: 18
+              red: 22
+          - type: entities
+            title: Pomp statistiek
+            entities:
+              - entity: sensor.justnimbus_water_used_last_hour
+                name: Gebruikt water afgelopen uur
+              - entity: sensor.justnimbus_water_used_total
+                name: Totaal gebruikt
+              - entity: sensor.justnimbus_pump_runtime_total
+                name: Pomptijd
+              - entity: sensor.justnimbus_pump_starts_last_hour
+                name: Pompstarts laatste uur
+              - entity: sensor.justnimbus_pump_starts_total
+                name: Pompstarts totaal
+              - entity: binary_sensor.justnimbus_pump
+                name: Pomp actief
+
+      # ---------------- BUFFER (reservoir) ----------------
+      - type: grid
+        cards:
+          - type: heading
+            heading: Buffer
+          - type: gauge
+            entity: sensor.justnimbus_reservoir_fill_level
+            name: Indicatie volume buffer
+            unit: "%"
+            min: 0
+            max: 100
+            needle: true
+            severity:
+              red: 0
+              yellow: 20
+              green: 50
+          - type: entities
+            title: Buffer
+            entities:
+              - entity: sensor.justnimbus_reservoir_volume
+                name: Volume buffer (L)
+              - entity: sensor.justnimbus_water_height
+                name: Waterniveau (mm)
+              - entity: sensor.justnimbus_reservoir_temperature
+                name: Temperatuur buffer
+              - entity: binary_sensor.justnimbus_reservoir_full
+                name: Vulniveau bereikt
+              - entity: binary_sensor.justnimbus_overflow
+                name: Overflow
+
+      # ---------------- BIJVULLEN (mains top-up) ----------------
+      - type: grid
+        cards:
+          - type: heading
+            heading: Bijvullen
+          - type: gauge
+            entity: sensor.justnimbus_water_flow_in
+            name: Instroom drinkwater
+            min: 0
+            max: 60
+            needle: true
+          - type: entities
+            title: Bijvullen
+            entities:
+              - entity: sensor.justnimbus_water_added_last_hour
+                name: Bijgevuld afgelopen uur
+              - entity: sensor.justnimbus_water_added_total
+                name: Totaal bijgevuld drinkwater
+              - entity: binary_sensor.justnimbus_valve_in
+                name: Klep in (bijvullen)
+              - entity: binary_sensor.justnimbus_valve_out
+                name: Klep uit
+              - entity: sensor.justnimbus_system_status
+                name: Status
