@@ -17,21 +17,72 @@ def _fire(hass: HomeAssistant, entry_id: str, topic: str, payload: str) -> None:
 
 
 async def test_binary_sensors_created(hass: HomeAssistant, loaded_entry) -> None:
-    """Overflow and reservoir-full binary sensors should be created."""
+    """All six binary sensors should be created."""
     states = hass.states.async_all("binary_sensor")
-    assert len(states) == 2
+    assert len(states) == 6
     registry = er.async_get(hass)
-    for key in ("overflow", "reservoir_full"):
+    for key in (
+        "overflow",
+        "reservoir_full",
+        "system_error",
+        "pump_actuator",
+        "valve_in_actuator",
+        "valve_out_actuator",
+    ):
         entity = registry.async_get_entity_id(
             "binary_sensor", "justnimbus_mqtt", f"{loaded_entry.entry_id}_{key}"
         )
         assert entity is not None, f"binary_sensor '{key}' not registered"
 
 
+async def test_actuator_on_off(hass: HomeAssistant, loaded_entry) -> None:
+    """'valvein.off' -> off, 'valvein.on' -> on."""
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "binary_sensor",
+        "justnimbus_mqtt",
+        f"{loaded_entry.entry_id}_valve_in_actuator",
+    )
+
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/actuator/valve/in",
+        "valvein.off",
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "off"
+
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/actuator/valve/in",
+        "valvein.on",
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "on"
+
+
+async def test_system_error_problem(hass: HomeAssistant, loaded_entry) -> None:
+    """0 -> off (no problem); non-zero -> on."""
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "binary_sensor", "justnimbus_mqtt", f"{loaded_entry.entry_id}_system_error"
+    )
+
+    _fire(hass, loaded_entry.entry_id, f"{DEFAULT_TOPIC_PREFIX}/system/error", "0")
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "off"
+
+    _fire(hass, loaded_entry.entry_id, f"{DEFAULT_TOPIC_PREFIX}/system/error", "12")
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "on"
+
+
 async def test_reservoir_full_uses_default_height(
     hass: HomeAssistant, loaded_entry
 ) -> None:
-    """With no options set, full triggers at the default 500 mm height."""
+    """Reservoir full triggers at the configured 500 mm height."""
     registry = er.async_get(hass)
     entity_id = registry.async_get_entity_id(
         "binary_sensor", "justnimbus_mqtt", f"{loaded_entry.entry_id}_reservoir_full"

@@ -38,8 +38,36 @@ def _fire(hass: HomeAssistant, entry_id: str, topic: str, payload: str) -> None:
 
 
 async def test_sensor_count(hass: HomeAssistant, loaded_entry) -> None:
-    """Twelve MQTT sensors plus the derived reservoir-fill sensor."""
-    assert len(hass.states.async_all("sensor")) == 13
+    """18 MQTT sensors plus the derived reservoir-fill sensor."""
+    assert len(hass.states.async_all("sensor")) == 19
+
+
+async def test_pump_starts_total(hass: HomeAssistant, loaded_entry) -> None:
+    """Numeric pump-statistics topic maps to a sensor."""
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/stats/pump/starts/total",
+        "1234",
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get(
+        _entity_id(hass, loaded_entry.entry_id, "pump_starts_total")
+    )
+    assert state.state == "1234.0"
+
+
+async def test_system_status_text(hass: HomeAssistant, loaded_entry) -> None:
+    """String system topic is stored verbatim, not parsed as a number."""
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/system/status",
+        "System Just Right!",
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "system_status"))
+    assert state.state == "System Just Right!"
 
 
 async def test_reservoir_fill_unknown_when_not_configured(

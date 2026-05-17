@@ -102,6 +102,24 @@
       },
       "reservoir_fill": {
         "name": "Reservoir fill level"
+      },
+      "pump_starts_hour": {
+        "name": "Pump starts (last hour)"
+      },
+      "pump_starts_24h": {
+        "name": "Pump starts (24 h)"
+      },
+      "pump_starts_total": {
+        "name": "Pump starts (total)"
+      },
+      "pump_runtime_total": {
+        "name": "Pump runtime (total)"
+      },
+      "system_status": {
+        "name": "System status"
+      },
+      "system_mode": {
+        "name": "System mode"
       }
     },
     "binary_sensor": {
@@ -110,6 +128,18 @@
       },
       "reservoir_full": {
         "name": "Reservoir full"
+      },
+      "system_error": {
+        "name": "System error"
+      },
+      "pump_actuator": {
+        "name": "Pump"
+      },
+      "valve_in_actuator": {
+        "name": "Valve in"
+      },
+      "valve_out_actuator": {
+        "name": "Valve out"
       }
     }
   }
