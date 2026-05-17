@@ -9,11 +9,14 @@ from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.justnimbus_mqtt.const import (
     CONF_DEVICE_NAME,
+    CONF_RESERVOIR_PRESET,
+    CONF_RESERVOIR_VOLUME,
     CONF_TOPIC_PREFIX,
     DEFAULT_DEVICE_NAME,
     DEFAULT_PORT,
     DEFAULT_TOPIC_PREFIX,
     DOMAIN,
+    RESERVOIR_PRESETS,
 )
 
 _HOST = "192.168.1.100"
@@ -86,3 +89,27 @@ async def test_different_host_allowed(hass: HomeAssistant) -> None:
         user_input={**_VALID_INPUT, CONF_HOST: "192.168.1.200"},
     )
     assert result3["type"] == FlowResultType.CREATE_ENTRY
+
+
+async def test_options_flow_preset_prefill(hass: HomeAssistant, loaded_entry) -> None:
+    """Picking a standard preset prefills and saves the dimensions."""
+    result = await hass.config_entries.options.async_init(loaded_entry.entry_id)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "init"
+
+    result2 = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        user_input={CONF_RESERVOIR_PRESET: "standard_4500"},
+    )
+    assert result2["type"] == FlowResultType.FORM
+    assert result2["step_id"] == "dimensions"
+
+    expected = RESERVOIR_PRESETS["standard_4500"]
+    result3 = await hass.config_entries.options.async_configure(
+        result2["flow_id"], user_input=dict(expected)
+    )
+    await hass.async_block_till_done()
+    assert result3["type"] == FlowResultType.CREATE_ENTRY
+    assert (
+        loaded_entry.options[CONF_RESERVOIR_VOLUME] == expected[CONF_RESERVOIR_VOLUME]
+    )

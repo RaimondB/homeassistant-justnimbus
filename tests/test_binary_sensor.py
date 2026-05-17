@@ -16,15 +16,44 @@ def _fire(hass: HomeAssistant, entry_id: str, topic: str, payload: str) -> None:
     async_dispatcher_send(hass, signal_message(entry_id), topic, payload)
 
 
-async def test_overflow_entity_created(hass: HomeAssistant, loaded_entry) -> None:
-    """One binary sensor entity (overflow) should be created."""
+async def test_binary_sensors_created(hass: HomeAssistant, loaded_entry) -> None:
+    """Overflow and reservoir-full binary sensors should be created."""
     states = hass.states.async_all("binary_sensor")
-    assert len(states) == 1
+    assert len(states) == 2
     registry = er.async_get(hass)
-    entry = registry.async_get_entity_id(
-        "binary_sensor", "justnimbus_mqtt", f"{loaded_entry.entry_id}_overflow"
+    for key in ("overflow", "reservoir_full"):
+        entity = registry.async_get_entity_id(
+            "binary_sensor", "justnimbus_mqtt", f"{loaded_entry.entry_id}_{key}"
+        )
+        assert entity is not None, f"binary_sensor '{key}' not registered"
+
+
+async def test_reservoir_full_uses_default_height(
+    hass: HomeAssistant, loaded_entry
+) -> None:
+    """With no options set, full triggers at the default 500 mm height."""
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id(
+        "binary_sensor", "justnimbus_mqtt", f"{loaded_entry.entry_id}_reservoir_full"
     )
-    assert entry is not None
+
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/sensor/water/height",
+        "499",
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "off"
+
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/sensor/water/height",
+        "500",
+    )
+    await hass.async_block_till_done()
+    assert hass.states.get(entity_id).state == "on"
 
 
 async def test_overflow_on(hass: HomeAssistant, loaded_entry) -> None:

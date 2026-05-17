@@ -22,6 +22,42 @@
       "already_configured": "A device with this host, port and topic prefix is already configured."
     }
   },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Reservoir type",
+        "description": "Pick a standard rainwater bag (\"zak\") to prefill the dimensions, or choose Custom to enter them yourself.",
+        "data": {
+          "reservoir_preset": "Reservoir"
+        }
+      },
+      "dimensions": {
+        "title": "Reservoir dimensions",
+        "description": "Physical size of the rainwater reservoir (\"zak\"). Used to derive the fill level and the full indicator. Prefilled from your choice — adjust if needed.",
+        "data": {
+          "reservoir_length_mm": "Reservoir length (mm)",
+          "reservoir_width_mm": "Reservoir width (mm)",
+          "reservoir_height_mm": "Reservoir height (mm)",
+          "reservoir_volume_l": "Reservoir capacity (liter)"
+        },
+        "data_description": {
+          "reservoir_length_mm": "Bag length in millimetres.",
+          "reservoir_width_mm": "Bag width in millimetres.",
+          "reservoir_height_mm": "Bag height in millimetres — the water height at which the reservoir counts as full.",
+          "reservoir_volume_l": "Total bag capacity in litres — used as 100% for the fill level."
+        }
+      }
+    }
+  },
+  "selector": {
+    "reservoir_preset": {
+      "options": {
+        "standard_3000": "Standard 3,000 L (~2.6 × 2.6 × 0.5 m)",
+        "standard_4500": "Standard 4,500 L (~3.5 × 2.6 × 0.5 m)",
+        "custom": "Custom (enter dimensions manually)"
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "pump_pressure": {
@@ -59,11 +95,17 @@
       },
       "water_added_total": {
         "name": "Water added (total)"
+      },
+      "reservoir_fill": {
+        "name": "Reservoir fill level"
       }
     },
     "binary_sensor": {
       "overflow": {
         "name": "Overflow"
+      },
+      "reservoir_full": {
+        "name": "Reservoir full"
       }
     }
   }
