@@ -7,35 +7,29 @@ Home Assistant custom integration for **JustNimbus** rainwater pumps, using loca
 
 ## Features
 
-- **Local push** (`iot_class: local_push`) — state changes appear instantly via MQTT
-- 12 sensor entities covering reservoir state, flow, pressure, temperature, and daily/hourly/total statistics
-- 1 binary sensor for reservoir overflow detection
-- Configurable topic prefix (default: `justnimbus`) and device name
-
-## MQTT topics
-
-The integration subscribes to the following topics under the configured prefix:
-
-| Topic suffix | Entity | Unit |
-|---|---|---|
-| `sensor/water/pressure` | Pump pressure | bar |
-| `sensor/water/temp` | Reservoir temperature | °C |
-| `sensor/water/volume` | Reservoir volume | L |
-| `sensor/water/height` | Water height | mm |
-| `sensor/waterflow/in` | Water flow in | L/min |
-| `sensor/waterflow/out` | Water flow out | L/min |
-| `sensor/overflow` | Overflow (binary) | — |
-| `stats/water/used/hour` | Water used (last hour) | L |
-| `stats/water/used/24h` | Water used (24 h) | L |
-| `stats/water/used/total` | Water used (total) | L |
-| `stats/water/added/hour` | Water added (last hour) | L |
-| `stats/water/added/24h` | Water added (24 h) | L |
-| `stats/water/added/total` | Water added (total) | L |
+- **Local push** (`iot_class: local_push`) — connects **directly** to your
+  MQTT broker via `aiomqtt`; no cloud, no polling, and **no dependency on
+  Home Assistant's MQTT integration**
+- Full coverage of the device's MQTT topics: water pressure / temperature /
+  volume / height, flow in & out, hourly / 24 h / total water used & added,
+  pump statistics (starts, runtime), and system status / mode
+- Binary sensors: overflow, reservoir full, system error (problem), and
+  pump / valve-in / valve-out actuators
+- Derived **reservoir fill %** and **reservoir full** from the configured
+  reservoir ("zak") dimensions — pick a standard bag, Custom, or Unknown
+- `water used/added (total)` use the `water` device class, so they feed the
+  **Energy → Water** dashboard; state is restored across restarts
+- Configurable broker host/port, topic prefix (default: `justnimbus`),
+  device name, and reservoir — all from the UI
 
 ## Prerequisites
 
-1. A JustNimbus device publishing MQTT to your local broker
-2. The [MQTT integration](https://www.home-assistant.io/integrations/mqtt/) configured in Home Assistant
+- A JustNimbus device publishing to an MQTT broker reachable from Home
+  Assistant (the device's embedded broker, or any broker it publishes to)
+- The broker's host and port — entered during setup
+
+> Home Assistant's own MQTT integration is **not** required; this
+> integration owns its own broker connection.
 
 ## Installation (HACS)
 
@@ -43,7 +37,11 @@ The integration subscribes to the following topics under the configured prefix:
 2. Install **JustNimbus MQTT**
 3. Restart Home Assistant
 4. Go to **Settings → Devices & Services → Add Integration → JustNimbus MQTT**
-5. Enter the topic prefix (default: `justnimbus`) and a device name
+5. Enter the broker **host** and **port**, the **topic prefix** (default:
+   `justnimbus`), and a **device name**
+6. Choose the reservoir: a standard bag, **Custom** dimensions, or
+   **Unknown** (skip — the fill / full entities stay unavailable until set
+   later via the device's **Configure** button)
 
 ## Manual installation
 
