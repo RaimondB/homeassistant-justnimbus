@@ -2,110 +2,119 @@
 
 from __future__ import annotations
 
-import pytest
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
-from pytest_homeassistant_custom_component.common import async_fire_mqtt_message
+from homeassistant.helpers.dispatcher import async_dispatcher_send
+
+from custom_components.justnimbus_mqtt.const import (
+    DEFAULT_TOPIC_PREFIX,
+    signal_message,
+)
 
 
 def _entity_id(
     hass: HomeAssistant, entry_id: str, key: str, domain: str = "sensor"
 ) -> str:
-    """Look up entity_id by unique_id."""
+    """Look up entity_id by unique_id via the entity registry."""
     registry = er.async_get(hass)
     unique_id = f"{entry_id}_{key}"
     entity_id = registry.async_get_entity_id(domain, "justnimbus_mqtt", unique_id)
-    assert entity_id is not None, f"Entity '{key}' not found"
+    assert entity_id is not None, f"Entity '{key}' not found in registry"
     return entity_id
 
 
-@pytest.fixture
-async def loaded_entry(hass: HomeAssistant, config_entry, mqtt_mock):
-    """Set up the integration and wait for entities to register."""
-    await hass.config_entries.async_setup(config_entry.entry_id)
-    await hass.async_block_till_done()
-    return config_entry
+def _fire(hass: HomeAssistant, entry_id: str, topic: str, payload: str) -> None:
+    """Helper: fire the dispatcher as the MQTT loop would."""
+    async_dispatcher_send(hass, signal_message(entry_id), topic, payload)
 
 
 async def test_sensor_count(hass: HomeAssistant, loaded_entry) -> None:
     """Twelve sensor entities should be created."""
-    states = hass.states.async_all("sensor")
-    assert len(states) == 12
+    assert len(hass.states.async_all("sensor")) == 12
 
 
 async def test_pump_pressure_updates(hass: HomeAssistant, loaded_entry) -> None:
-    """Sensor state updates when an MQTT message arrives."""
-    async_fire_mqtt_message(hass, "justnimbus/sensor/water/pressure", "1.8")
+    """Sensor state updates when a dispatcher message arrives."""
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/sensor/water/pressure",
+        "1.8",
+    )
     await hass.async_block_till_done()
 
-    state = next(
-        s for s in hass.states.async_all("sensor") if "pressure" in s.entity_id
-    )
+    state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "pump_pressure"))
     assert state.state == "1.8"
 
 
 async def test_reservoir_temp_updates(hass: HomeAssistant, loaded_entry) -> None:
     """Reservoir temperature sensor updates correctly."""
-    async_fire_mqtt_message(hass, "justnimbus/sensor/water/temp", "14.5")
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/sensor/water/temp",
+        "14.5",
+    )
     await hass.async_block_till_done()
 
-    state = next(s for s in hass.states.async_all("sensor") if "temp" in s.entity_id)
+    state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "reservoir_temp"))
     assert state.state == "14.5"
 
 
 async def test_waterflow_in_updates(hass: HomeAssistant, loaded_entry) -> None:
     """Water flow in sensor updates correctly."""
-    async_fire_mqtt_message(hass, "justnimbus/sensor/waterflow/in", "3.2")
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/sensor/waterflow/in",
+        "3.2",
+    )
     await hass.async_block_till_done()
 
-    entity_id = _entity_id(hass, loaded_entry.entry_id, "waterflow_in")
-    assert hass.states.get(entity_id).state == "3.2"
+    state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "waterflow_in"))
+    assert state.state == "3.2"
 
 
 async def test_water_used_total_updates(hass: HomeAssistant, loaded_entry) -> None:
     """Total water used statistic updates correctly."""
-    async_fire_mqtt_message(hass, "justnimbus/stats/water/used/total", "12345.0")
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/stats/water/used/total",
+        "12345.0",
+    )
     await hass.async_block_till_done()
 
-    entity_id = _entity_id(hass, loaded_entry.entry_id, "water_used_total")
-    assert hass.states.get(entity_id).state == "12345.0"
+    state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "water_used_total"))
+    assert state.state == "12345.0"
 
 
 async def test_invalid_payload_ignored(hass: HomeAssistant, loaded_entry) -> None:
     """Non-numeric payload leaves state as unknown rather than crashing."""
-    async_fire_mqtt_message(hass, "justnimbus/sensor/water/pressure", "bad")
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/sensor/water/pressure",
+        "bad",
+    )
     await hass.async_block_till_done()
 
-    state = next(
-        s for s in hass.states.async_all("sensor") if "pressure" in s.entity_id
-    )
+    state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "pump_pressure"))
     assert state.state == "unknown"
 
 
-async def test_custom_topic_prefix(hass: HomeAssistant, mqtt_mock) -> None:
-    """Entities subscribe under the configured prefix, not the default."""
-    from pytest_homeassistant_custom_component.common import MockConfigEntry
-
-    from custom_components.justnimbus_mqtt.const import (
-        CONF_DEVICE_NAME,
-        CONF_TOPIC_PREFIX,
-        DOMAIN,
+async def test_wrong_topic_ignored(hass: HomeAssistant, loaded_entry) -> None:
+    """Message on an unrelated topic does not change the sensor state."""
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/sensor/water/pressure",
+        "1.5",
     )
-
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        title="My Pump",
-        data={CONF_TOPIC_PREFIX: "mypump", CONF_DEVICE_NAME: "My Pump"},
-        unique_id="mypump",
-    )
-    entry.add_to_hass(hass)
-    await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()
 
-    async_fire_mqtt_message(hass, "mypump/sensor/water/pressure", "2.1")
-    await hass.async_block_till_done()
-
-    state = next(
-        s for s in hass.states.async_all("sensor") if "pressure" in s.entity_id
+    # Fire a message for a different topic — temperature should stay unknown
+    temp_state = hass.states.get(
+        _entity_id(hass, loaded_entry.entry_id, "reservoir_temp")
     )
-    assert state.state == "2.1"
+    assert temp_state.state == "unknown"

@@ -5,3 +5,4 @@
 # constraints trigger the same backtrack.
 pytest-homeassistant-custom-component==0.13.205
 ruff
+aiomqtt==2.5.1

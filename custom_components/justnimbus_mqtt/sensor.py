@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
 from dataclasses import dataclass
 
-from homeassistant.components import mqtt
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -24,9 +22,10 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_DEVICE_NAME, CONF_TOPIC_PREFIX, DOMAIN
+from .const import CONF_DEVICE_NAME, CONF_TOPIC_PREFIX, DOMAIN, signal_message
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -162,11 +161,10 @@ async def async_setup_entry(
 
 
 class JustNimbusMqttSensor(SensorEntity):
-    """A JustNimbus sensor reading from an MQTT topic."""
+    """A JustNimbus sensor updated via the integration's MQTT dispatcher."""
 
     _attr_has_entity_name = True
     _attr_native_value: float | None = None
-    _unsubscribe: Callable[[], None] | None = None
 
     def __init__(
         self,
@@ -177,6 +175,7 @@ class JustNimbusMqttSensor(SensorEntity):
         description: JustNimbusSensorDescription,
     ) -> None:
         self.entity_description: JustNimbusSensorDescription = description
+        self._entry_id = entry_id
         self._topic = f"{topic_prefix}/{description.topic_suffix}"
         self._attr_unique_id = f"{entry_id}_{description.key}"
         self._attr_device_info = DeviceInfo(
@@ -187,22 +186,23 @@ class JustNimbusMqttSensor(SensorEntity):
         )
 
     async def async_added_to_hass(self) -> None:
-        """Subscribe to MQTT topic on add."""
+        """Register dispatcher listener."""
 
         @callback
-        def message_received(msg: mqtt.ReceiveMessage) -> None:
+        def _message_received(topic: str, payload: str) -> None:
+            if topic != self._topic:
+                return
             try:
-                self._attr_native_value = float(msg.payload)
+                self._attr_native_value = float(payload)
             except (ValueError, TypeError):
-                _LOGGER.warning("Invalid payload on %s: %r", self._topic, msg.payload)
+                _LOGGER.warning("Invalid payload on %s: %r", self._topic, payload)
                 return
             self.async_write_ha_state()
 
-        self._unsubscribe = await mqtt.async_subscribe(
-            self.hass, self._topic, message_received, qos=0
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                signal_message(self._entry_id),
+                _message_received,
+            )
         )
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Unsubscribe from MQTT on remove."""
-        if self._unsubscribe is not None:
-            self._unsubscribe()

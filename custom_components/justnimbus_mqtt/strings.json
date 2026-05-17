@@ -5,10 +5,14 @@
         "title": "JustNimbus MQTT",
         "description": "Configure the MQTT topic prefix your JustNimbus device publishes to.",
         "data": {
+          "host": "IP address / hostname",
+          "port": "Port",
           "topic_prefix": "MQTT topic prefix",
           "device_name": "Device name"
         },
         "data_description": {
+          "host": "IP address or hostname of the JustNimbus MQTT broker.",
+          "port": "TCP port of the JustNimbus MQTT broker (default: 1883).",
           "topic_prefix": "The root topic your JustNimbus device publishes to (default: justnimbus).",
           "device_name": "Friendly name shown in Home Assistant."
         }
@@ -16,7 +20,7 @@
     },
     "abort": {
       "already_configured": "This topic prefix is already configured.",
-      "mqtt_not_configured": "The MQTT integration is not configured. Set it up first."
+      "already_configured": "A device with this host, port and topic prefix is already configured."
     }
   },
   "entity": {
