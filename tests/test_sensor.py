@@ -33,6 +33,17 @@ async def test_sensor_count(hass: HomeAssistant, loaded_entry) -> None:
     assert len(hass.states.async_all("sensor")) == 12
 
 
+async def test_entity_ids_are_readable(hass: HomeAssistant, loaded_entry) -> None:
+    """entity_ids derive from the key, never the device_class fallback."""
+    entity_ids = {s.entity_id for s in hass.states.async_all("sensor")}
+    assert "sensor.justnimbus_water_added_total" in entity_ids
+    assert "sensor.justnimbus_pump_pressure" in entity_ids
+    # No device_class fallback ("..._volume", "..._volume_7", ...).
+    assert not any(
+        "_volume" in eid and eid.rsplit("_", 1)[-1].isdigit() for eid in entity_ids
+    )
+
+
 async def test_pump_pressure_updates(hass: HomeAssistant, loaded_entry) -> None:
     """Sensor state updates when a dispatcher message arrives."""
     _fire(
