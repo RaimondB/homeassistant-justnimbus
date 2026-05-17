@@ -3,7 +3,18 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import patch
+import sys
+from types import ModuleType
+from unittest.mock import MagicMock, patch
+
+# aiomqtt 2.x requires paho-mqtt>=2.1.0 but phacc 0.13.205 (the last build
+# that supports Python 3.12) pins paho-mqtt==1.6.1. Stub the module so the
+# integration can import without the real package.
+if "aiomqtt" not in sys.modules:
+    _fake_aiomqtt = ModuleType("aiomqtt")
+    _fake_aiomqtt.MqttError = OSError  # type: ignore[attr-defined]
+    _fake_aiomqtt.Client = MagicMock()  # type: ignore[attr-defined]
+    sys.modules["aiomqtt"] = _fake_aiomqtt
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -42,7 +53,7 @@ class _BlockingMessages:
 
     async def __anext__(self):
         # Block until the background task is cancelled by hass shutdown
-        await asyncio.get_event_loop().create_future()
+        await asyncio.get_running_loop().create_future()
         raise StopAsyncIteration
 
 
@@ -60,6 +71,18 @@ class _FakeMqttClient:
 
     async def subscribe(self, *args, **kwargs):
         pass
+
+
+@pytest.fixture(autouse=True)
+def mock_mqtt_client():
+    """Patch aiomqtt.Client with the fake for every test.
+
+    Without this, config flow tests that create a real entry start the MQTT
+    background task against the bare MagicMock stub, whose async iterator
+    can't be cleanly cancelled during hass teardown, causing hangs.
+    """
+    with patch("custom_components.justnimbus_mqtt.aiomqtt.Client", _FakeMqttClient):
+        yield
 
 
 @pytest.fixture
@@ -85,7 +108,6 @@ def config_entry(hass):
 @pytest.fixture
 async def loaded_entry(hass, config_entry):
     """Load the integration with a stubbed MQTT client."""
-    with patch("custom_components.justnimbus_mqtt.aiomqtt.Client", _FakeMqttClient):
-        await hass.config_entries.async_setup(config_entry.entry_id)
-        await hass.async_block_till_done()
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
     return config_entry
