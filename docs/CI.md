@@ -2,18 +2,34 @@
 
 ## Local CI
 
-`scripts/ci` mirrors `.github/workflows/ci.yml` exactly so failures are
-reproduced in ~0.7s instead of push-and-wait.
+`scripts/ci` mirrors **both** `.github/workflows/ci.yml` (ruff + pytest)
+and `validate.yml` (hassfest + HACS) so failures are reproduced locally
+instead of push-and-wait.
 
 ```bash
-scripts/ci          # lint + format check + tests (full run)
+scripts/ci          # lint + format + tests + hassfest + hacs (full run)
 scripts/ci lint     # ruff check only
 scripts/ci format   # ruff format --check only
 scripts/ci test     # pytest only
+scripts/ci hassfest # home-assistant/actions/hassfest (Docker)
+scripts/ci hacs     # hacs/action (Docker)
+scripts/ci validate # hassfest + hacs
 scripts/ci fix      # ruff check --fix + ruff format (mutating)
 ```
 
 First run creates `.venv` and installs `requirements_test.txt`.
+
+`hassfest`/`hacs` run the exact Docker images the GitHub Actions use:
+
+- They are **skipped with a warning** if Docker is unavailable (the
+  ruff+pytest flow still works on Docker-less machines; the Validate
+  workflow is the remote backstop).
+- The local `.venv`/`.venv-probe` are hidden via tmpfs overlays so
+  hassfest only discovers `custom_components/` (otherwise it would also
+  validate every built-in HA integration vendored under `.venv`).
+- `hacs` needs a GitHub token + repo: the script reuses `gh auth token`
+  and `gh repo view` automatically. It is skipped (warning) if no token
+  is available.
 
 ## Pre-push checklist
 
@@ -43,11 +59,11 @@ Before pushing commits intended for a pull request, **in this order**:
    gh run list --branch <branch> --limit 3
    ```
 
-## What local CI does *not* cover
+## Coverage
 
-`scripts/ci` runs ruff + pytest only. It does **not** run hassfest or the
-HACS action. Entity `device_class` / `state_class` / unit-of-measurement
-combinations and manifest/translation validity are only checked by the
-**Validate** workflow remotely (`home-assistant/actions/hassfest` +
-`hacs/action`). After changing any of those, watch the Validate run on the
-PR — a green `scripts/ci` is necessary but not sufficient.
+A full `scripts/ci` now reproduces every required PR check —
+`test (3.12/3.13)`, `hassfest`, `hacs` — so a clean `==> OK` means the PR
+checks should pass too. The remote workflows remain the source of truth
+(they run on a clean checkout and the full Python matrix); local CI is the
+fast feedback loop. If Docker or a GitHub token is missing, the skipped
+hassfest/hacs steps fall back to the remote **Validate** workflow.

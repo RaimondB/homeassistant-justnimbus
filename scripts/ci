@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
-# Local CI — mirrors .github/workflows/ci.yml exactly so failures can be
-# reproduced and fixed before pushing.
+# Local CI — mirrors .github/workflows/ci.yml AND validate.yml exactly so
+# failures can be reproduced and fixed before pushing.
 #
-#   scripts/ci            # full run: lint + format + tests
+#   scripts/ci            # full run: lint + format + tests + hassfest + hacs
 #   scripts/ci lint       # ruff check only
 #   scripts/ci format     # ruff format --check only
 #   scripts/ci test       # pytest only
+#   scripts/ci hassfest   # home-assistant/actions/hassfest (Docker)
+#   scripts/ci hacs       # hacs/action (Docker)
+#   scripts/ci validate   # hassfest + hacs
 #   scripts/ci fix        # ruff check --fix + ruff format (mutating)
+#
+# hassfest/hacs run the exact Docker images the GitHub Actions use, so the
+# translation/manifest/HACS checks that ruff+pytest can't see run locally
+# too. They are skipped (with a warning) if Docker is unavailable.
 #
 # First run creates .venv and installs requirements_test.txt.
 
@@ -39,12 +46,68 @@ run_lint()   { echo "==> ruff check";          ruff check .; }
 run_format() { echo "==> ruff format --check"; ruff format --check .; }
 run_test()   { echo "==> pytest";              pytest --junitxml=test-results.xml; }
 
+# Mirrors validate.yml: home-assistant/actions/hassfest@master, a Docker
+# action that mounts the repo at /github/workspace.
+run_hassfest() {
+  echo "==> hassfest"
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "    SKIP: docker not available (runs in CI via validate.yml)"
+    return 0
+  fi
+  # tmpfs overlays hide the local venvs so hassfest only discovers
+  # custom_components/ — exactly what the clean CI checkout sees.
+  docker run --rm -v "$PWD":/github/workspace \
+    --tmpfs /github/workspace/.venv \
+    --tmpfs /github/workspace/.venv-probe \
+    ghcr.io/home-assistant/hassfest:latest
+}
+
+# Mirrors validate.yml: hacs/action@main with category=integration,
+# ignore=brands. Needs a GitHub token for the repository checks; reuse the
+# gh CLI's token if present.
+run_hacs() {
+  echo "==> hacs"
+  if ! command -v docker >/dev/null 2>&1; then
+    echo "    SKIP: docker not available (runs in CI via validate.yml)"
+    return 0
+  fi
+  local token="" repo=""
+  if command -v gh >/dev/null 2>&1; then
+    token="$(gh auth token 2>/dev/null || true)"
+    repo="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
+  fi
+  token="${token:-${GITHUB_TOKEN:-}}"
+  if [ -z "$repo" ]; then
+    repo="$(git config --get remote.origin.url \
+      | sed -E 's#(git@github.com:|https://github.com/)##; s#\.git$##')"
+  fi
+  if [ -z "$token" ]; then
+    echo "    SKIP: no GitHub token (gh auth login, or set GITHUB_TOKEN)"
+    return 0
+  fi
+  # hacs/action reads the token as the INPUT_GITHUB_TOKEN action input and
+  # needs GITHUB_REPOSITORY for its repository checks.
+  docker run --rm -v "$PWD":/github/workspace \
+    --tmpfs /github/workspace/.venv \
+    --tmpfs /github/workspace/.venv-probe \
+    -e INPUT_CATEGORY=integration \
+    -e INPUT_IGNORE=brands \
+    -e INPUT_GITHUB_TOKEN="$token" \
+    -e GITHUB_TOKEN="$token" \
+    -e GITHUB_REPOSITORY="$repo" \
+    ghcr.io/hacs/action:main
+}
+
 case "${1:-all}" in
-  lint)   run_lint ;;
-  format) run_format ;;
-  test)   run_test ;;
-  fix)    ruff check --fix .; ruff format . ;;
-  all)    run_lint; run_format; run_test ;;
-  *) echo "usage: scripts/ci [lint|format|test|fix|all]" >&2; exit 2 ;;
+  lint)     run_lint ;;
+  format)   run_format ;;
+  test)     run_test ;;
+  hassfest) run_hassfest ;;
+  hacs)     run_hacs ;;
+  validate) run_hassfest; run_hacs ;;
+  fix)      ruff check --fix .; ruff format . ;;
+  all)      run_lint; run_format; run_test; run_hassfest; run_hacs ;;
+  *) echo "usage: scripts/ci [lint|format|test|hassfest|hacs|validate|fix|all]" >&2
+     exit 2 ;;
 esac
 echo "==> OK"
