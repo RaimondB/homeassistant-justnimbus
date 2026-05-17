@@ -49,6 +49,13 @@ The integration subscribes to the following topics under the configured prefix:
 
 Copy `custom_components/justnimbus_mqtt/` into your `<config>/custom_components/` directory and restart Home Assistant.
 
+## Example dashboard
+
+[`examples/dashboard.yaml`](examples/dashboard.yaml) recreates the device's
+own POMP / BUFFER / BIJVULLEN dashboard from the integration's entities.
+Paste it into a new dashboard's raw configuration; adjust the entity-id
+prefix if your device name isn't the default `JustNimbus`.
+
 ## Development
 
 ```bash
