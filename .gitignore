@@ -10,3 +10,6 @@ htmlcov/
 .mypy_cache/
 test-results.xml
 .claude/
+
+.venv-probe/
+scripts/.justnimbus.env

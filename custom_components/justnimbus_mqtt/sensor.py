@@ -61,8 +61,8 @@ SENSOR_DESCRIPTIONS: tuple[JustNimbusSensorDescription, ...] = (
         translation_key="water_volume",
         topic_suffix="sensor/water/volume",
         native_unit_of_measurement=UnitOfVolume.LITERS,
-        device_class=SensorDeviceClass.VOLUME,
-        state_class=SensorStateClass.TOTAL,
+        device_class=SensorDeviceClass.VOLUME_STORAGE,
+        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     JustNimbusSensorDescription(
@@ -111,7 +111,7 @@ SENSOR_DESCRIPTIONS: tuple[JustNimbusSensorDescription, ...] = (
         translation_key="water_used_total",
         topic_suffix="stats/water/used/total",
         native_unit_of_measurement=UnitOfVolume.LITERS,
-        device_class=SensorDeviceClass.VOLUME,
+        device_class=SensorDeviceClass.WATER,
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
     JustNimbusSensorDescription(
@@ -135,7 +135,7 @@ SENSOR_DESCRIPTIONS: tuple[JustNimbusSensorDescription, ...] = (
         translation_key="water_added_total",
         topic_suffix="stats/water/added/total",
         native_unit_of_measurement=UnitOfVolume.LITERS,
-        device_class=SensorDeviceClass.VOLUME,
+        device_class=SensorDeviceClass.WATER,
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
 )
