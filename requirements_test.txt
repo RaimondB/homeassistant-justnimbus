@@ -3,5 +3,13 @@
 # lets pip backtrack into ancient HA when any constraint conflicts.
 # Do NOT also pin cryptography/aiohttp/pytest here — HA pins them; duplicate
 # constraints trigger the same backtrack.
+#
+# phacc 0.13.205 is the last release that supports Python 3.12. All later
+# versions require Python >=3.13 and use paho-mqtt==2.1.0, which would also
+# resolve the aiomqtt conflict. Upgrade phacc by upgrading Python to 3.13+.
+#
+# aiomqtt is NOT listed here: phacc 0.13.205 pins paho-mqtt==1.6.1 which
+# conflicts with aiomqtt 2.x (requires paho-mqtt>=2.1.0). conftest.py stubs
+# aiomqtt via sys.modules so it never needs to be installed for tests.
 pytest-homeassistant-custom-component==0.13.205
 ruff
