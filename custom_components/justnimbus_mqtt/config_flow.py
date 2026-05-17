@@ -75,7 +75,7 @@ class JustNimbusMqttConfigFlow(ConfigFlow, domain=DOMAIN):
         config_entry: ConfigEntry,
     ) -> JustNimbusMqttOptionsFlow:
         """Return the options flow for reservoir ("zak") dimensions."""
-        return JustNimbusMqttOptionsFlow()
+        return JustNimbusMqttOptionsFlow(config_entry)
 
 
 def _positive_int(value: object) -> int:
@@ -101,6 +101,12 @@ class JustNimbusMqttOptionsFlow(OptionsFlow):
     (always visible, so there is never a hidden/blocked sub-step).
     """
 
+    def __init__(self, config_entry: ConfigEntry) -> None:
+        # Hold our own reference rather than relying on the framework's
+        # self.config_entry, whose availability at form-build time varies
+        # across HA versions (caused a 500 when loading the options flow).
+        self._entry = config_entry
+
     async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
         """Show preset + dimensions and store the resolved values."""
         if user_input is not None:
@@ -117,7 +123,7 @@ class JustNimbusMqttOptionsFlow(OptionsFlow):
             resolved[CONF_RESERVOIR_PRESET] = preset
             return self.async_create_entry(title="", data=resolved)
 
-        opts = self.config_entry.options
+        opts = self._entry.options
 
         def _default(key: str, fallback: int) -> int:
             return opts.get(key, fallback)
