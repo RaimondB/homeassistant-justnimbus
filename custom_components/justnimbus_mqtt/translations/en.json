@@ -47,14 +47,14 @@
           "reservoir_volume_l": "Total bag capacity in litres — used as 100% for the fill level."
         }
       }
-    },
-    "selector": {
-      "reservoir_preset": {
-        "options": {
-          "standard_3000": "Standard 3,000 L (~2.6 × 2.6 × 0.5 m)",
-          "standard_4500": "Standard 4,500 L (~3.5 × 2.6 × 0.5 m)",
-          "custom": "Custom (enter dimensions manually)"
-        }
+    }
+  },
+  "selector": {
+    "reservoir_preset": {
+      "options": {
+        "standard_3000": "Standard 3,000 L (~2.6 × 2.6 × 0.5 m)",
+        "standard_4500": "Standard 4,500 L (~3.5 × 2.6 × 0.5 m)",
+        "custom": "Custom (enter dimensions manually)"
       }
     }
   },
