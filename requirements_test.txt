@@ -8,6 +8,11 @@
 # versions require Python >=3.13 and use paho-mqtt==2.1.0, which would also
 # resolve the aiomqtt conflict. Upgrade phacc by upgrading Python to 3.13+.
 #
+# This pin is the fast LOCAL default (and the 3.12 CI floor). CI's test
+# matrix overrides it per Python (3.13 -> 0.13.316, 3.14 -> latest) so
+# multiple Home Assistant versions are exercised — see .github/workflows/
+# ci.yml and docs/CI.md.
+#
 # aiomqtt is NOT listed here: phacc 0.13.205 pins paho-mqtt==1.6.1 which
 # conflicts with aiomqtt 2.x (requires paho-mqtt>=2.1.0). conftest.py stubs
 # aiomqtt via sys.modules so it never needs to be installed for tests.
