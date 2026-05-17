@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from pytest_homeassistant_custom_component.common import mock_restore_cache
 
 from custom_components.justnimbus_mqtt.const import (
     DEFAULT_TOPIC_PREFIX,
@@ -14,6 +15,19 @@ from custom_components.justnimbus_mqtt.const import (
 
 def _fire(hass: HomeAssistant, entry_id: str, topic: str, payload: str) -> None:
     async_dispatcher_send(hass, signal_message(entry_id), topic, payload)
+
+
+async def test_binary_sensor_restores_last_state(
+    hass: HomeAssistant, config_entry
+) -> None:
+    """A binary sensor shows its last on/off after restart."""
+    entity_id = "binary_sensor.justnimbus_pump"
+    mock_restore_cache(hass, (State(entity_id, "on"),))
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    # No MQTT message fired — state comes purely from restore.
+    assert hass.states.get(entity_id).state == "on"
 
 
 async def test_binary_sensors_created(hass: HomeAssistant, loaded_entry) -> None:

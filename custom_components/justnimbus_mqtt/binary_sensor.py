@@ -11,10 +11,12 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntityDescription,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import STATE_OFF, STATE_ON, EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.restore_state import RestoreEntity
 
 from .const import (
     CONF_DEVICE_NAME,
@@ -45,21 +47,21 @@ ACTUATOR_DESCRIPTIONS: tuple[JustNimbusActuatorDescription, ...] = (
         translation_key="pump_actuator",
         topic_suffix="actuator/pump",
         device_class=BinarySensorDeviceClass.RUNNING,
-        entity_category=None,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     JustNimbusActuatorDescription(
         key="valve_in_actuator",
         translation_key="valve_in_actuator",
         topic_suffix="actuator/valve/in",
         device_class=BinarySensorDeviceClass.OPENING,
-        entity_category=None,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     JustNimbusActuatorDescription(
         key="valve_out_actuator",
         translation_key="valve_out_actuator",
         topic_suffix="actuator/valve/out",
         device_class=BinarySensorDeviceClass.OPENING,
-        entity_category=None,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
 )
 
@@ -105,12 +107,13 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class JustNimbusOverflowSensor(BinarySensorEntity):
+class JustNimbusOverflowSensor(BinarySensorEntity, RestoreEntity):
     """Overflow binary sensor — on when the reservoir is overflowing."""
 
     _attr_has_entity_name = True
     _attr_translation_key = "overflow"
     _attr_device_class = BinarySensorDeviceClass.MOISTURE
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_is_on: bool | None = None
 
     def __init__(
@@ -131,7 +134,11 @@ class JustNimbusOverflowSensor(BinarySensorEntity):
         )
 
     async def async_added_to_hass(self) -> None:
-        """Register dispatcher listener."""
+        """Restore last state, then register the dispatcher listener."""
+        if (last := await self.async_get_last_state()) is not None and (
+            last.state in (STATE_ON, STATE_OFF)
+        ):
+            self._attr_is_on = last.state == STATE_ON
 
         @callback
         def _message_received(topic: str, payload: str) -> None:
@@ -153,13 +160,13 @@ class JustNimbusOverflowSensor(BinarySensorEntity):
         )
 
 
-class JustNimbusSystemErrorSensor(BinarySensorEntity):
+class JustNimbusSystemErrorSensor(BinarySensorEntity, RestoreEntity):
     """Problem sensor — on when the device reports a non-zero error code."""
 
     _attr_has_entity_name = True
     _attr_translation_key = "system_error"
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
-    _attr_entity_category = None
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_is_on: bool | None = None
 
     def __init__(
@@ -180,7 +187,11 @@ class JustNimbusSystemErrorSensor(BinarySensorEntity):
         )
 
     async def async_added_to_hass(self) -> None:
-        """Register dispatcher listener."""
+        """Restore last state, then register the dispatcher listener."""
+        if (last := await self.async_get_last_state()) is not None and (
+            last.state in (STATE_ON, STATE_OFF)
+        ):
+            self._attr_is_on = last.state == STATE_ON
 
         @callback
         def _message_received(topic: str, payload: str) -> None:
@@ -202,7 +213,7 @@ class JustNimbusSystemErrorSensor(BinarySensorEntity):
         )
 
 
-class JustNimbusActuatorSensor(BinarySensorEntity):
+class JustNimbusActuatorSensor(BinarySensorEntity, RestoreEntity):
     """Actuator state from a '<name>.on' / '<name>.off' payload."""
 
     _attr_has_entity_name = True
@@ -228,7 +239,11 @@ class JustNimbusActuatorSensor(BinarySensorEntity):
         )
 
     async def async_added_to_hass(self) -> None:
-        """Register dispatcher listener."""
+        """Restore last state, then register the dispatcher listener."""
+        if (last := await self.async_get_last_state()) is not None and (
+            last.state in (STATE_ON, STATE_OFF)
+        ):
+            self._attr_is_on = last.state == STATE_ON
 
         @callback
         def _message_received(topic: str, payload: str) -> None:
@@ -255,11 +270,12 @@ class JustNimbusActuatorSensor(BinarySensorEntity):
         )
 
 
-class JustNimbusReservoirFullSensor(BinarySensorEntity):
+class JustNimbusReservoirFullSensor(BinarySensorEntity, RestoreEntity):
     """On when the water height reaches the configured reservoir height."""
 
     _attr_has_entity_name = True
     _attr_translation_key = "reservoir_full"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_is_on: bool | None = None
 
     def __init__(
@@ -282,7 +298,11 @@ class JustNimbusReservoirFullSensor(BinarySensorEntity):
         )
 
     async def async_added_to_hass(self) -> None:
-        """Register dispatcher listener."""
+        """Restore last state, then register the dispatcher listener."""
+        if (last := await self.async_get_last_state()) is not None and (
+            last.state in (STATE_ON, STATE_OFF)
+        ):
+            self._attr_is_on = last.state == STATE_ON
 
         # No reservoir height configured ("unknown"): stay unknown.
         if not self._reservoir_height_mm:
