@@ -13,11 +13,21 @@
       "water_added_hour": { "default": "mdi:weather-rainy" },
       "water_added_24h": { "default": "mdi:weather-rainy" },
       "water_added_total": { "default": "mdi:weather-rainy" },
-      "reservoir_fill": { "default": "mdi:car-coolant-level" }
+      "reservoir_fill": { "default": "mdi:car-coolant-level" },
+      "pump_starts_hour": { "default": "mdi:pump" },
+      "pump_starts_24h": { "default": "mdi:pump" },
+      "pump_starts_total": { "default": "mdi:pump" },
+      "pump_runtime_total": { "default": "mdi:timer-outline" },
+      "system_status": { "default": "mdi:information-outline" },
+      "system_mode": { "default": "mdi:state-machine" }
     },
     "binary_sensor": {
       "overflow": { "default": "mdi:water-alert" },
-      "reservoir_full": { "default": "mdi:cup-water" }
+      "reservoir_full": { "default": "mdi:cup-water" },
+      "system_error": { "default": "mdi:alert-circle" },
+      "pump_actuator": { "default": "mdi:pump" },
+      "valve_in_actuator": { "default": "mdi:valve" },
+      "valve_out_actuator": { "default": "mdi:valve" }
     }
   }
 }

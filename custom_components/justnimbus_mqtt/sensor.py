@@ -18,6 +18,7 @@ from homeassistant.const import (
     UnitOfLength,
     UnitOfPressure,
     UnitOfTemperature,
+    UnitOfTime,
     UnitOfVolume,
     UnitOfVolumeFlowRate,
 )
@@ -42,6 +43,8 @@ class JustNimbusSensorDescription(SensorEntityDescription):
     """Describes a JustNimbus MQTT sensor."""
 
     topic_suffix: str
+    # True: store the raw string payload (status/mode/actuator topics).
+    text: bool = False
 
 
 SENSOR_DESCRIPTIONS: tuple[JustNimbusSensorDescription, ...] = (
@@ -145,6 +148,52 @@ SENSOR_DESCRIPTIONS: tuple[JustNimbusSensorDescription, ...] = (
         device_class=SensorDeviceClass.WATER,
         state_class=SensorStateClass.TOTAL_INCREASING,
     ),
+    # --- Pump statistics ---
+    JustNimbusSensorDescription(
+        key="pump_starts_hour",
+        translation_key="pump_starts_hour",
+        topic_suffix="stats/pump/starts/hour",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    JustNimbusSensorDescription(
+        key="pump_starts_24h",
+        translation_key="pump_starts_24h",
+        topic_suffix="stats/pump/starts/24h",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    JustNimbusSensorDescription(
+        key="pump_starts_total",
+        translation_key="pump_starts_total",
+        topic_suffix="stats/pump/starts/total",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    JustNimbusSensorDescription(
+        key="pump_runtime_total",
+        translation_key="pump_runtime_total",
+        topic_suffix="stats/pump/totalminutes",
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        device_class=SensorDeviceClass.DURATION,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    # --- System state (string payloads, e.g. "System Just Right!") ---
+    JustNimbusSensorDescription(
+        key="system_status",
+        translation_key="system_status",
+        topic_suffix="system/status",
+        text=True,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    JustNimbusSensorDescription(
+        key="system_mode",
+        translation_key="system_mode",
+        topic_suffix="system/mode",
+        text=True,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 )
 
 
@@ -183,7 +232,7 @@ class JustNimbusMqttSensor(SensorEntity):
     """A JustNimbus sensor updated via the integration's MQTT dispatcher."""
 
     _attr_has_entity_name = True
-    _attr_native_value: float | None = None
+    _attr_native_value: float | str | None = None
 
     def __init__(
         self,
@@ -211,11 +260,14 @@ class JustNimbusMqttSensor(SensorEntity):
         def _message_received(topic: str, payload: str) -> None:
             if topic != self._topic:
                 return
-            try:
-                self._attr_native_value = float(payload)
-            except (ValueError, TypeError):
-                _LOGGER.warning("Invalid payload on %s: %r", self._topic, payload)
-                return
+            if self.entity_description.text:
+                self._attr_native_value = payload
+            else:
+                try:
+                    self._attr_native_value = float(payload)
+                except (ValueError, TypeError):
+                    _LOGGER.warning("Invalid payload on %s: %r", self._topic, payload)
+                    return
             self.async_write_ha_state()
 
         self.async_on_remove(
