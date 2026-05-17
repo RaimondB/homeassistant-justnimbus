@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import voluptuous_serialize
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import config_validation as cv
 
 from custom_components.justnimbus_mqtt.const import (
     CONF_DEVICE_NAME,
@@ -93,6 +95,25 @@ async def test_different_host_allowed(hass: HomeAssistant) -> None:
         user_input={**_VALID_INPUT, CONF_HOST: "192.168.1.200"},
     )
     assert result3["type"] == FlowResultType.CREATE_ENTRY
+
+
+async def test_options_schema_is_frontend_serializable(
+    hass: HomeAssistant, loaded_entry
+) -> None:
+    """The options form schema must serialize like the HA frontend does.
+
+    Regression: a bare callable schema type validates fine in tests but
+    voluptuous_serialize (used to render the form) raises on it, so the
+    real UI failed with "config flow could not be loaded" while every
+    pytest stayed green. Replicate that serialization here.
+    """
+    result = await hass.config_entries.options.async_init(loaded_entry.entry_id)
+    assert result["type"] == FlowResultType.FORM
+    serialized = voluptuous_serialize.convert(
+        result["data_schema"], custom_serializer=cv.custom_serializer
+    )
+    # Every field must serialize to a dict (no opaque callables left).
+    assert all(isinstance(field, dict) for field in serialized)
 
 
 async def test_options_flow_preset(hass: HomeAssistant, loaded_entry) -> None:
