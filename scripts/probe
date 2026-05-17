@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Run the standalone JustNimbus MQTT probe (no Home Assistant needed).
+#
+#   scripts/probe                  # capture <prefix>/# for 30s + coverage report
+#   scripts/probe --duration 120   # listen longer (slow-publishing device)
+#   scripts/probe --debug          # + verbose logging
+#
+# Connection: JUSTNIMBUS_HOST / JUSTNIMBUS_PORT / JUSTNIMBUS_TOPIC_PREFIX env
+# vars, or a gitignored ./scripts/.justnimbus.env (KEY=VALUE lines).
+#
+# Uses a lightweight venv (.venv-probe) with only aiomqtt — separate from the
+# heavy HA test venv (where aiomqtt can't be installed alongside phacc).
+
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+VENV=".venv-probe"
+PY="${PYTHON:-python3}"
+
+if [ ! -d "$VENV" ]; then
+  echo "==> Creating probe venv ($PY)"
+  if ! "$PY" -m venv "$VENV" 2>/dev/null; then
+    if ! "$PY" -m virtualenv --version >/dev/null 2>&1; then
+      "$PY" -m pip install --user --quiet --break-system-packages virtualenv
+    fi
+    "$PY" -m virtualenv "$VENV"
+  fi
+  # shellcheck disable=SC1091
+  source "$VENV/bin/activate"
+  python -m pip install --upgrade pip >/dev/null
+  # Match the version the integration declares in manifest.json.
+  pip install --quiet "aiomqtt==2.5.1"
+else
+  # shellcheck disable=SC1091
+  source "$VENV/bin/activate"
+fi
+
+exec python scripts/justnimbus_probe.py "$@"

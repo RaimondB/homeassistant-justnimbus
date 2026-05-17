@@ -57,6 +57,24 @@ scripts/ci fix      # auto-fix lint/format issues
 scripts/ci test     # tests only
 ```
 
+### Probing a real device (no Home Assistant)
+
+`scripts/probe` connects to the JustNimbus MQTT broker exactly like the
+integration does, dumps every message under `<prefix>/#`, and reports which
+topics the integration *expects* were actually seen — so the topic→entity
+mapping can be validated independently of the HA runtime.
+
+```bash
+JUSTNIMBUS_HOST=192.168.1.50 scripts/probe          # capture 30s + report
+scripts/probe --duration 120                         # listen longer
+scripts/probe --debug                                # verbose
+```
+
+Connection settings come from `JUSTNIMBUS_HOST` / `JUSTNIMBUS_PORT` (default
+1883) / `JUSTNIMBUS_TOPIC_PREFIX` (default `justnimbus`), or a gitignored
+`scripts/.justnimbus.env` with `KEY=VALUE` lines. It uses an isolated
+`.venv-probe` (only `aiomqtt`), so it never collides with the test venv.
+
 ## License
 
 MIT
