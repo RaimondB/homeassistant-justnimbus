@@ -9,13 +9,17 @@ from homeassistant.data_entry_flow import FlowResultType
 
 from custom_components.justnimbus_mqtt.const import (
     CONF_DEVICE_NAME,
+    CONF_RESERVOIR_HEIGHT,
+    CONF_RESERVOIR_LENGTH,
     CONF_RESERVOIR_PRESET,
     CONF_RESERVOIR_VOLUME,
+    CONF_RESERVOIR_WIDTH,
     CONF_TOPIC_PREFIX,
     DEFAULT_DEVICE_NAME,
     DEFAULT_PORT,
     DEFAULT_TOPIC_PREFIX,
     DOMAIN,
+    PRESET_CUSTOM,
     RESERVOIR_PRESETS,
 )
 
@@ -91,25 +95,45 @@ async def test_different_host_allowed(hass: HomeAssistant) -> None:
     assert result3["type"] == FlowResultType.CREATE_ENTRY
 
 
-async def test_options_flow_preset_prefill(hass: HomeAssistant, loaded_entry) -> None:
-    """Picking a standard preset prefills and saves the dimensions."""
+async def test_options_flow_preset(hass: HomeAssistant, loaded_entry) -> None:
+    """A standard preset saves its own dimensions in one step."""
     result = await hass.config_entries.options.async_init(loaded_entry.entry_id)
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "init"
 
+    expected = RESERVOIR_PRESETS["standard_4500"]
     result2 = await hass.config_entries.options.async_configure(
         result["flow_id"],
-        user_input={CONF_RESERVOIR_PRESET: "standard_4500"},
-    )
-    assert result2["type"] == FlowResultType.FORM
-    assert result2["step_id"] == "dimensions"
-
-    expected = RESERVOIR_PRESETS["standard_4500"]
-    result3 = await hass.config_entries.options.async_configure(
-        result2["flow_id"], user_input=dict(expected)
+        user_input={
+            CONF_RESERVOIR_PRESET: "standard_4500",
+            # Boxes are ignored when a standard preset is chosen.
+            CONF_RESERVOIR_LENGTH: 1,
+            CONF_RESERVOIR_WIDTH: 1,
+            CONF_RESERVOIR_HEIGHT: 1,
+            CONF_RESERVOIR_VOLUME: 1,
+        },
     )
     await hass.async_block_till_done()
-    assert result3["type"] == FlowResultType.CREATE_ENTRY
-    assert (
-        loaded_entry.options[CONF_RESERVOIR_VOLUME] == expected[CONF_RESERVOIR_VOLUME]
+    assert result2["type"] == FlowResultType.CREATE_ENTRY
+    opts = loaded_entry.options
+    assert opts[CONF_RESERVOIR_VOLUME] == expected[CONF_RESERVOIR_VOLUME]
+    assert opts[CONF_RESERVOIR_LENGTH] == expected[CONF_RESERVOIR_LENGTH]
+
+
+async def test_options_flow_custom(hass: HomeAssistant, loaded_entry) -> None:
+    """Custom uses the values entered in the boxes."""
+    result = await hass.config_entries.options.async_init(loaded_entry.entry_id)
+    result2 = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        user_input={
+            CONF_RESERVOIR_PRESET: PRESET_CUSTOM,
+            CONF_RESERVOIR_LENGTH: 4000,
+            CONF_RESERVOIR_WIDTH: 3000,
+            CONF_RESERVOIR_HEIGHT: 600,
+            CONF_RESERVOIR_VOLUME: 7000,
+        },
     )
+    await hass.async_block_till_done()
+    assert result2["type"] == FlowResultType.CREATE_ENTRY
+    assert loaded_entry.options[CONF_RESERVOIR_VOLUME] == 7000
+    assert loaded_entry.options[CONF_RESERVOIR_HEIGHT] == 600

@@ -12,6 +12,7 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -85,56 +86,58 @@ def _positive_int(value: object) -> int:
     return ivalue
 
 
+_PRESET_LABELS: dict[str, str] = {
+    "standard_3000": "Standard 3,000 L (~2.6 x 2.6 x 0.5 m)",
+    "standard_4500": "Standard 4,500 L (~3.5 x 2.6 x 0.5 m)",
+    PRESET_CUSTOM: "Custom (use the values entered below)",
+}
+
+
 class JustNimbusMqttOptionsFlow(OptionsFlow):
     """Configure the physical reservoir ("zak") so fill % can be derived.
 
-    Step 1 picks a standard bag (or "custom"); step 2 shows the four
-    dimensions prefilled from that choice so users rarely type anything.
+    Single step: a preset radio plus the four dimension boxes. Picking a
+    standard bag uses its values; "custom" uses whatever is in the boxes
+    (always visible, so there is never a hidden/blocked sub-step).
     """
 
-    def __init__(self) -> None:
-        self._prefill: dict[str, int] = {}
-
     async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
-        """Choose a standard reservoir preset (or custom)."""
+        """Show preset + dimensions and store the resolved values."""
         if user_input is not None:
             preset = user_input[CONF_RESERVOIR_PRESET]
-            self._prefill = RESERVOIR_PRESETS.get(preset, {})
-            return await self.async_step_dimensions()
+            if preset in RESERVOIR_PRESETS:
+                resolved = dict(RESERVOIR_PRESETS[preset])
+            else:
+                resolved = {
+                    CONF_RESERVOIR_LENGTH: user_input[CONF_RESERVOIR_LENGTH],
+                    CONF_RESERVOIR_WIDTH: user_input[CONF_RESERVOIR_WIDTH],
+                    CONF_RESERVOIR_HEIGHT: user_input[CONF_RESERVOIR_HEIGHT],
+                    CONF_RESERVOIR_VOLUME: user_input[CONF_RESERVOIR_VOLUME],
+                }
+            resolved[CONF_RESERVOIR_PRESET] = preset
+            return self.async_create_entry(title="", data=resolved)
+
+        opts = self.config_entry.options
+
+        def _default(key: str, fallback: int) -> int:
+            return opts.get(key, fallback)
 
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Required(
-                        CONF_RESERVOIR_PRESET, default=PRESET_CUSTOM
+                        CONF_RESERVOIR_PRESET,
+                        default=opts.get(CONF_RESERVOIR_PRESET, PRESET_CUSTOM),
                     ): SelectSelector(
                         SelectSelectorConfig(
-                            options=[*RESERVOIR_PRESETS, PRESET_CUSTOM],
-                            translation_key="reservoir_preset",
+                            options=[
+                                SelectOptionDict(value=value, label=label)
+                                for value, label in _PRESET_LABELS.items()
+                            ],
                             mode=SelectSelectorMode.LIST,
                         )
-                    )
-                }
-            ),
-        )
-
-    async def async_step_dimensions(
-        self, user_input: dict | None = None
-    ) -> ConfigFlowResult:
-        """Confirm or adjust the reservoir dimensions."""
-        if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
-
-        opts = self.config_entry.options
-
-        def _default(key: str, fallback: int) -> int:
-            return self._prefill.get(key, opts.get(key, fallback))
-
-        return self.async_show_form(
-            step_id="dimensions",
-            data_schema=vol.Schema(
-                {
+                    ),
                     vol.Required(
                         CONF_RESERVOIR_LENGTH,
                         default=_default(
