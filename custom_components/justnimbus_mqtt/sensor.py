@@ -6,6 +6,7 @@ import logging
 from dataclasses import dataclass
 
 from homeassistant.components.sensor import (
+    ENTITY_ID_FORMAT,
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
@@ -24,6 +25,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import slugify
 
 from .const import CONF_DEVICE_NAME, CONF_TOPIC_PREFIX, DOMAIN, signal_message
 
@@ -178,6 +180,11 @@ class JustNimbusMqttSensor(SensorEntity):
         self._entry_id = entry_id
         self._topic = f"{topic_prefix}/{description.topic_suffix}"
         self._attr_unique_id = f"{entry_id}_{description.key}"
+        # Deterministic, readable entity_id from the stable key — never let
+        # it fall back to the device_class ("sensor.<device>_volume_7").
+        self.entity_id = ENTITY_ID_FORMAT.format(
+            slugify(f"{device_name}_{description.key}")
+        )
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
             name=device_name,

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from homeassistant.components.binary_sensor import (
+    ENTITY_ID_FORMAT,
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
@@ -13,6 +14,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.util import slugify
 
 from .const import CONF_DEVICE_NAME, CONF_TOPIC_PREFIX, DOMAIN, signal_message
 
@@ -58,6 +60,9 @@ class JustNimbusOverflowSensor(BinarySensorEntity):
         self._entry_id = entry_id
         self._topic = f"{topic_prefix}/{_OVERFLOW_TOPIC_SUFFIX}"
         self._attr_unique_id = f"{entry_id}_overflow"
+        # Deterministic, readable entity_id — never fall back to the
+        # device_class ("binary_sensor.<device>_moisture").
+        self.entity_id = ENTITY_ID_FORMAT.format(slugify(f"{device_name}_overflow"))
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
             name=device_name,
