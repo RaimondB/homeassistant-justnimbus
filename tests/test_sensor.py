@@ -29,8 +29,32 @@ def _fire(hass: HomeAssistant, entry_id: str, topic: str, payload: str) -> None:
 
 
 async def test_sensor_count(hass: HomeAssistant, loaded_entry) -> None:
-    """Twelve sensor entities should be created."""
-    assert len(hass.states.async_all("sensor")) == 12
+    """Twelve MQTT sensors plus the derived reservoir-fill sensor."""
+    assert len(hass.states.async_all("sensor")) == 13
+
+
+async def test_reservoir_fill_percentage(hass: HomeAssistant, loaded_entry) -> None:
+    """Fill % = reported volume / default capacity (4500 L) * 100, clamped."""
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/sensor/water/volume",
+        "2250",
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "reservoir_fill"))
+    assert state.state == "50.0"
+
+    # Over capacity clamps to 100.
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/sensor/water/volume",
+        "9999",
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "reservoir_fill"))
+    assert state.state == "100.0"
 
 
 async def test_pump_pressure_updates(hass: HomeAssistant, loaded_entry) -> None:

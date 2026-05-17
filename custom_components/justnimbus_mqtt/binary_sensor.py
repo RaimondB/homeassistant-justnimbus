@@ -14,11 +14,19 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_DEVICE_NAME, CONF_TOPIC_PREFIX, DOMAIN, signal_message
+from .const import (
+    CONF_DEVICE_NAME,
+    CONF_RESERVOIR_HEIGHT,
+    CONF_TOPIC_PREFIX,
+    DEFAULT_RESERVOIR_HEIGHT,
+    DOMAIN,
+    signal_message,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 _OVERFLOW_TOPIC_SUFFIX = "sensor/overflow"
+_HEIGHT_TOPIC_SUFFIX = "sensor/water/height"
 
 
 async def async_setup_entry(
@@ -29,13 +37,22 @@ async def async_setup_entry(
     """Set up JustNimbus MQTT binary sensors."""
     prefix = entry.data[CONF_TOPIC_PREFIX]
     device_name = entry.data[CONF_DEVICE_NAME]
+    reservoir_height_mm = entry.options.get(
+        CONF_RESERVOIR_HEIGHT, DEFAULT_RESERVOIR_HEIGHT
+    )
     async_add_entities(
         [
             JustNimbusOverflowSensor(
                 entry_id=entry.entry_id,
                 device_name=device_name,
                 topic_prefix=prefix,
-            )
+            ),
+            JustNimbusReservoirFullSensor(
+                entry_id=entry.entry_id,
+                device_name=device_name,
+                topic_prefix=prefix,
+                reservoir_height_mm=reservoir_height_mm,
+            ),
         ]
     )
 
@@ -77,6 +94,56 @@ class JustNimbusOverflowSensor(BinarySensorEntity):
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid overflow payload: %r", payload)
                 return
+            self.async_write_ha_state()
+
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                signal_message(self._entry_id),
+                _message_received,
+            )
+        )
+
+
+class JustNimbusReservoirFullSensor(BinarySensorEntity):
+    """On when the water height reaches the configured reservoir height."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "reservoir_full"
+    _attr_is_on: bool | None = None
+
+    def __init__(
+        self,
+        *,
+        entry_id: str,
+        device_name: str,
+        topic_prefix: str,
+        reservoir_height_mm: int,
+    ) -> None:
+        self._entry_id = entry_id
+        self._topic = f"{topic_prefix}/{_HEIGHT_TOPIC_SUFFIX}"
+        self._reservoir_height_mm = reservoir_height_mm
+        self._attr_unique_id = f"{entry_id}_reservoir_full"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry_id)},
+            name=device_name,
+            manufacturer="JustNimbus",
+            model="Rainwater Pump",
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Register dispatcher listener."""
+
+        @callback
+        def _message_received(topic: str, payload: str) -> None:
+            if topic != self._topic:
+                return
+            try:
+                height_mm = float(payload)
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid height payload: %r", payload)
+                return
+            self._attr_is_on = height_mm >= self._reservoir_height_mm
             self.async_write_ha_state()
 
         self.async_on_remove(

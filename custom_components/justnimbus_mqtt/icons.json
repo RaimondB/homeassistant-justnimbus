@@ -12,10 +12,12 @@
       "water_used_total": { "default": "mdi:water-pump" },
       "water_added_hour": { "default": "mdi:weather-rainy" },
       "water_added_24h": { "default": "mdi:weather-rainy" },
-      "water_added_total": { "default": "mdi:weather-rainy" }
+      "water_added_total": { "default": "mdi:weather-rainy" },
+      "reservoir_fill": { "default": "mdi:car-coolant-level" }
     },
     "binary_sensor": {
-      "overflow": { "default": "mdi:water-alert" }
+      "overflow": { "default": "mdi:water-alert" },
+      "reservoir_full": { "default": "mdi:cup-water" }
     }
   }
 }

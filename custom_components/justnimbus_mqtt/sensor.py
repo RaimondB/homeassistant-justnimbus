@@ -13,6 +13,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    PERCENTAGE,
     EntityCategory,
     UnitOfLength,
     UnitOfPressure,
@@ -25,7 +26,14 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import CONF_DEVICE_NAME, CONF_TOPIC_PREFIX, DOMAIN, signal_message
+from .const import (
+    CONF_DEVICE_NAME,
+    CONF_RESERVOIR_VOLUME,
+    CONF_TOPIC_PREFIX,
+    DEFAULT_RESERVOIR_VOLUME,
+    DOMAIN,
+    signal_message,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -149,7 +157,8 @@ async def async_setup_entry(
     """Set up JustNimbus MQTT sensors."""
     prefix = entry.data[CONF_TOPIC_PREFIX]
     device_name = entry.data[CONF_DEVICE_NAME]
-    async_add_entities(
+    capacity_l = entry.options.get(CONF_RESERVOIR_VOLUME, DEFAULT_RESERVOIR_VOLUME)
+    entities: list[SensorEntity] = [
         JustNimbusMqttSensor(
             entry_id=entry.entry_id,
             device_name=device_name,
@@ -157,7 +166,16 @@ async def async_setup_entry(
             description=desc,
         )
         for desc in SENSOR_DESCRIPTIONS
+    ]
+    entities.append(
+        JustNimbusReservoirFillSensor(
+            entry_id=entry.entry_id,
+            device_name=device_name,
+            topic_prefix=prefix,
+            capacity_l=capacity_l,
+        )
     )
+    async_add_entities(entities)
 
 
 class JustNimbusMqttSensor(SensorEntity):
@@ -197,6 +215,60 @@ class JustNimbusMqttSensor(SensorEntity):
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid payload on %s: %r", self._topic, payload)
                 return
+            self.async_write_ha_state()
+
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                signal_message(self._entry_id),
+                _message_received,
+            )
+        )
+
+
+class JustNimbusReservoirFillSensor(SensorEntity):
+    """Reservoir fill level (%), derived from reported volume vs capacity."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "reservoir_fill"
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 1
+    _attr_native_value: float | None = None
+
+    def __init__(
+        self,
+        *,
+        entry_id: str,
+        device_name: str,
+        topic_prefix: str,
+        capacity_l: int,
+    ) -> None:
+        self._entry_id = entry_id
+        self._topic = f"{topic_prefix}/sensor/water/volume"
+        self._capacity_l = capacity_l
+        self._attr_unique_id = f"{entry_id}_reservoir_fill"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry_id)},
+            name=device_name,
+            manufacturer="JustNimbus",
+            model="Rainwater Pump",
+        )
+
+    async def async_added_to_hass(self) -> None:
+        """Register dispatcher listener."""
+
+        @callback
+        def _message_received(topic: str, payload: str) -> None:
+            if topic != self._topic:
+                return
+            try:
+                volume_l = float(payload)
+            except (ValueError, TypeError):
+                _LOGGER.warning("Invalid payload on %s: %r", self._topic, payload)
+                return
+            pct = volume_l / self._capacity_l * 100 if self._capacity_l else 0.0
+            self._attr_native_value = round(min(100.0, max(0.0, pct)), 1)
             self.async_write_ha_state()
 
         self.async_on_remove(
