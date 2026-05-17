@@ -30,7 +30,6 @@ from .const import (
     CONF_DEVICE_NAME,
     CONF_RESERVOIR_VOLUME,
     CONF_TOPIC_PREFIX,
-    DEFAULT_RESERVOIR_VOLUME,
     DOMAIN,
     signal_message,
 )
@@ -157,7 +156,9 @@ async def async_setup_entry(
     """Set up JustNimbus MQTT sensors."""
     prefix = entry.data[CONF_TOPIC_PREFIX]
     device_name = entry.data[CONF_DEVICE_NAME]
-    capacity_l = entry.options.get(CONF_RESERVOIR_VOLUME, DEFAULT_RESERVOIR_VOLUME)
+    # No default: an unconfigured / "unknown" reservoir means no capacity,
+    # so the fill sensor stays unavailable rather than guessing.
+    capacity_l = entry.options.get(CONF_RESERVOIR_VOLUME)
     entities: list[SensorEntity] = [
         JustNimbusMqttSensor(
             entry_id=entry.entry_id,
@@ -242,7 +243,7 @@ class JustNimbusReservoirFillSensor(SensorEntity):
         entry_id: str,
         device_name: str,
         topic_prefix: str,
-        capacity_l: int,
+        capacity_l: int | None,
     ) -> None:
         self._entry_id = entry_id
         self._topic = f"{topic_prefix}/sensor/water/volume"
@@ -258,6 +259,11 @@ class JustNimbusReservoirFillSensor(SensorEntity):
     async def async_added_to_hass(self) -> None:
         """Register dispatcher listener."""
 
+        # No capacity configured ("unknown" reservoir): leave the state
+        # unknown rather than reporting a meaningless percentage.
+        if not self._capacity_l:
+            return
+
         @callback
         def _message_received(topic: str, payload: str) -> None:
             if topic != self._topic:
@@ -267,7 +273,7 @@ class JustNimbusReservoirFillSensor(SensorEntity):
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid payload on %s: %r", self._topic, payload)
                 return
-            pct = volume_l / self._capacity_l * 100 if self._capacity_l else 0.0
+            pct = volume_l / self._capacity_l * 100
             self._attr_native_value = round(min(100.0, max(0.0, pct)), 1)
             self.async_write_ha_state()
 

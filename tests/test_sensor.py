@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.justnimbus_mqtt.const import (
+    CONF_DEVICE_NAME,
+    CONF_RESERVOIR_PRESET,
+    CONF_TOPIC_PREFIX,
+    DEFAULT_DEVICE_NAME,
+    DEFAULT_PORT,
     DEFAULT_TOPIC_PREFIX,
+    DOMAIN,
+    PRESET_UNKNOWN,
     signal_message,
 )
 
@@ -31,6 +40,37 @@ def _fire(hass: HomeAssistant, entry_id: str, topic: str, payload: str) -> None:
 async def test_sensor_count(hass: HomeAssistant, loaded_entry) -> None:
     """Twelve MQTT sensors plus the derived reservoir-fill sensor."""
     assert len(hass.states.async_all("sensor")) == 13
+
+
+async def test_reservoir_fill_unknown_when_not_configured(
+    hass: HomeAssistant,
+) -> None:
+    """With reservoir = Unknown, the fill sensor stays unknown."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title=DEFAULT_DEVICE_NAME,
+        data={
+            CONF_HOST: "192.168.1.50",
+            CONF_PORT: DEFAULT_PORT,
+            CONF_TOPIC_PREFIX: DEFAULT_TOPIC_PREFIX,
+            CONF_DEVICE_NAME: DEFAULT_DEVICE_NAME,
+        },
+        options={CONF_RESERVOIR_PRESET: PRESET_UNKNOWN},
+        unique_id="192.168.1.50:1883:justnimbus",
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    _fire(
+        hass,
+        entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/sensor/water/volume",
+        "2250",
+    )
+    await hass.async_block_till_done()
+    state = hass.states.get(_entity_id(hass, entry.entry_id, "reservoir_fill"))
+    assert state.state == "unknown"
 
 
 async def test_reservoir_fill_percentage(hass: HomeAssistant, loaded_entry) -> None:
