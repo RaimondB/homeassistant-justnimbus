@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from homeassistant.components.sensor import SensorExtraStoredData
 from homeassistant.const import CONF_HOST, CONF_PORT
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    mock_restore_cache_with_extra_data,
+)
 
 from custom_components.justnimbus_mqtt.const import (
     CONF_DEVICE_NAME,
@@ -68,6 +72,27 @@ async def test_system_status_text(hass: HomeAssistant, loaded_entry) -> None:
     await hass.async_block_till_done()
     state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "system_status"))
     assert state.state == "System Just Right!"
+
+
+async def test_sensor_restores_last_value(hass: HomeAssistant, config_entry) -> None:
+    """A sensor shows its last value after restart, before any new message."""
+    entity_id = "sensor.justnimbus_pump_pressure"
+    mock_restore_cache_with_extra_data(
+        hass,
+        (
+            (
+                State(entity_id, "2.7"),
+                SensorExtraStoredData(
+                    native_value=2.7, native_unit_of_measurement="bar"
+                ).as_dict(),
+            ),
+        ),
+    )
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    # No MQTT message fired — value comes purely from restore.
+    assert hass.states.get(entity_id).state == "2.7"
 
 
 async def test_reservoir_fill_unknown_when_not_configured(

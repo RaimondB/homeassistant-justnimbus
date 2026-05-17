@@ -6,6 +6,7 @@ import logging
 from dataclasses import dataclass
 
 from homeassistant.components.sensor import (
+    RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
@@ -228,7 +229,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class JustNimbusMqttSensor(SensorEntity):
+class JustNimbusMqttSensor(RestoreSensor):
     """A JustNimbus sensor updated via the integration's MQTT dispatcher."""
 
     _attr_has_entity_name = True
@@ -254,7 +255,9 @@ class JustNimbusMqttSensor(SensorEntity):
         )
 
     async def async_added_to_hass(self) -> None:
-        """Register dispatcher listener."""
+        """Restore the last value, then register the dispatcher listener."""
+        if (last := await self.async_get_last_sensor_data()) is not None:
+            self._attr_native_value = last.native_value
 
         @callback
         def _message_received(topic: str, payload: str) -> None:
@@ -279,7 +282,7 @@ class JustNimbusMqttSensor(SensorEntity):
         )
 
 
-class JustNimbusReservoirFillSensor(SensorEntity):
+class JustNimbusReservoirFillSensor(RestoreSensor):
     """Reservoir fill level (%), derived from reported volume vs capacity."""
 
     _attr_has_entity_name = True
@@ -309,7 +312,9 @@ class JustNimbusReservoirFillSensor(SensorEntity):
         )
 
     async def async_added_to_hass(self) -> None:
-        """Register dispatcher listener."""
+        """Restore the last value, then register the dispatcher listener."""
+        if (last := await self.async_get_last_sensor_data()) is not None:
+            self._attr_native_value = last.native_value
 
         # No capacity configured ("unknown" reservoir): leave the state
         # unknown rather than reporting a meaningless percentage.
