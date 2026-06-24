@@ -274,6 +274,60 @@ async def test_reservoir_fill_non_finite_ignored(
     assert state.state == "50.0"
 
 
+async def test_measurement_throttled_within_interval(
+    hass: HomeAssistant, loaded_entry
+) -> None:
+    """A second reading inside min_interval is dropped to limit stored data."""
+    topic = f"{DEFAULT_TOPIC_PREFIX}/sensor/water/temp"
+    _fire(hass, loaded_entry.entry_id, topic, "14.0")
+    await hass.async_block_till_done()
+    # Fired immediately after, so well within the 60s throttle window.
+    _fire(hass, loaded_entry.entry_id, topic, "14.9")
+    await hass.async_block_till_done()
+
+    state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "reservoir_temp"))
+    assert state.state == "14.0"
+
+
+async def test_measurement_emits_after_interval(
+    hass: HomeAssistant, loaded_entry, monkeypatch
+) -> None:
+    """Once min_interval has elapsed the next reading is stored again.
+
+    This is also what keeps the reservoir-temperature liveness signal alive:
+    while messages keep arriving, one per interval is always stored.
+    """
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(
+        "custom_components.justnimbus_mqtt.sensor._monotonic", lambda: clock["t"]
+    )
+    topic = f"{DEFAULT_TOPIC_PREFIX}/sensor/water/temp"
+    _fire(hass, loaded_entry.entry_id, topic, "14.0")
+    await hass.async_block_till_done()
+    clock["t"] += 61  # past the 60s reservoir-temp interval
+    _fire(hass, loaded_entry.entry_id, topic, "14.9")
+    await hass.async_block_till_done()
+
+    state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "reservoir_temp"))
+    assert state.state == "14.9"
+
+
+async def test_unthrottled_sensor_updates_every_message(
+    hass: HomeAssistant, loaded_entry
+) -> None:
+    """Sensors without a min_interval (e.g. statistics) store every change."""
+    topic = f"{DEFAULT_TOPIC_PREFIX}/stats/pump/starts/total"
+    _fire(hass, loaded_entry.entry_id, topic, "1")
+    await hass.async_block_till_done()
+    _fire(hass, loaded_entry.entry_id, topic, "2")
+    await hass.async_block_till_done()
+
+    state = hass.states.get(
+        _entity_id(hass, loaded_entry.entry_id, "pump_starts_total")
+    )
+    assert state.state == "2.0"
+
+
 async def test_wrong_topic_ignored(hass: HomeAssistant, loaded_entry) -> None:
     """Message on an unrelated topic does not change the sensor state."""
     _fire(
