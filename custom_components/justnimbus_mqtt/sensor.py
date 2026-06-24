@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass
 
 from homeassistant.components.sensor import (
@@ -37,6 +38,18 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _is_valid_native_value(value: float | str | None) -> bool:
+    """Reject non-finite floats (nan/inf); any other value is fine.
+
+    The device publishes "nan" on its statistic topics until a window (e.g.
+    used-per-hour) has accumulated data — typically for hours after a power
+    cycle. float("nan") parses without error, but a non-finite value on a
+    TOTAL_INCREASING sensor makes HA core raise on every state write, so such
+    values must never reach the entity state (live or restored).
+    """
+    return not (isinstance(value, float) and not math.isfinite(value))
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -264,8 +277,10 @@ class JustNimbusMqttSensor(RestoreSensor):
     async def async_added_to_hass(self) -> None:
         """Restore the last value, then register the dispatcher listener."""
         if (
-            last := await self.async_get_last_sensor_data()
-        ) is not None and last.native_value is not None:
+            (last := await self.async_get_last_sensor_data()) is not None
+            and last.native_value is not None
+            and _is_valid_native_value(last.native_value)
+        ):
             self._attr_native_value = last.native_value
 
         @callback
@@ -276,10 +291,18 @@ class JustNimbusMqttSensor(RestoreSensor):
                 self._attr_native_value = payload
             else:
                 try:
-                    self._attr_native_value = float(payload)
+                    value = float(payload)
                 except (ValueError, TypeError):
                     _LOGGER.warning("Invalid payload on %s: %r", self._topic, payload)
                     return
+                if not _is_valid_native_value(value):
+                    # Expected for hours after a device restart; keep the last
+                    # good value rather than crashing on a non-finite state.
+                    _LOGGER.debug(
+                        "Ignoring non-finite payload on %s: %r", self._topic, payload
+                    )
+                    return
+                self._attr_native_value = value
             self.async_write_ha_state()
 
         self.async_on_remove(
@@ -322,7 +345,9 @@ class JustNimbusReservoirFillSensor(RestoreSensor):
 
     async def async_added_to_hass(self) -> None:
         """Restore the last value, then register the dispatcher listener."""
-        if (last := await self.async_get_last_sensor_data()) is not None:
+        if (
+            last := await self.async_get_last_sensor_data()
+        ) is not None and _is_valid_native_value(last.native_value):
             self._attr_native_value = last.native_value
 
         # No capacity configured ("unknown" reservoir): leave the state
@@ -338,6 +363,11 @@ class JustNimbusReservoirFillSensor(RestoreSensor):
                 volume_l = float(payload)
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid payload on %s: %r", self._topic, payload)
+                return
+            if not _is_valid_native_value(volume_l):
+                _LOGGER.debug(
+                    "Ignoring non-finite payload on %s: %r", self._topic, payload
+                )
                 return
             pct = volume_l / self._capacity_l * 100
             self._attr_native_value = round(min(100.0, max(0.0, pct)), 1)

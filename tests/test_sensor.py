@@ -227,6 +227,53 @@ async def test_invalid_payload_ignored(hass: HomeAssistant, loaded_entry) -> Non
     assert state.state == "unknown"
 
 
+async def test_non_finite_payload_ignored(hass: HomeAssistant, loaded_entry) -> None:
+    """A "nan" stat payload (sent for hours after a device restart) is ignored.
+
+    float("nan") parses fine, but a non-finite value on a TOTAL_INCREASING
+    sensor makes HA core raise on every state write. The sensor must stay
+    unknown rather than store it.
+    """
+    _fire(
+        hass,
+        loaded_entry.entry_id,
+        f"{DEFAULT_TOPIC_PREFIX}/stats/water/used/hour",
+        "nan",
+    )
+    await hass.async_block_till_done()
+
+    state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "water_used_hour"))
+    assert state.state == "unknown"
+
+
+async def test_non_finite_payload_keeps_last_value(
+    hass: HomeAssistant, loaded_entry
+) -> None:
+    """A later "nan" payload does not clobber a previously good value."""
+    topic = f"{DEFAULT_TOPIC_PREFIX}/stats/water/used/hour"
+    _fire(hass, loaded_entry.entry_id, topic, "42.0")
+    await hass.async_block_till_done()
+    _fire(hass, loaded_entry.entry_id, topic, "nan")
+    await hass.async_block_till_done()
+
+    state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "water_used_hour"))
+    assert state.state == "42.0"
+
+
+async def test_reservoir_fill_non_finite_ignored(
+    hass: HomeAssistant, loaded_entry
+) -> None:
+    """A non-finite volume payload leaves the derived fill % untouched."""
+    topic = f"{DEFAULT_TOPIC_PREFIX}/sensor/water/volume"
+    _fire(hass, loaded_entry.entry_id, topic, "2250")
+    await hass.async_block_till_done()
+    _fire(hass, loaded_entry.entry_id, topic, "nan")
+    await hass.async_block_till_done()
+
+    state = hass.states.get(_entity_id(hass, loaded_entry.entry_id, "reservoir_fill"))
+    assert state.state == "50.0"
+
+
 async def test_wrong_topic_ignored(hass: HomeAssistant, loaded_entry) -> None:
     """Message on an unrelated topic does not change the sensor state."""
     _fire(
