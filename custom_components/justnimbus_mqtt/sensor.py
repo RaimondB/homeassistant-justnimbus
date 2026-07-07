@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import math
+import time
 from dataclasses import dataclass
 
 from homeassistant.components.sensor import (
@@ -39,6 +41,23 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _monotonic() -> float:
+    """Monotonic clock, indirected so tests can drive the throttle timing."""
+    return time.monotonic()
+
+
+def _is_valid_native_value(value: float | str | None) -> bool:
+    """Reject non-finite floats (nan/inf); any other value is fine.
+
+    The device publishes "nan" on its statistic topics until a window (e.g.
+    used-per-hour) has accumulated data — typically for hours after a power
+    cycle. float("nan") parses without error, but a non-finite value on a
+    TOTAL_INCREASING sensor makes HA core raise on every state write, so such
+    values must never reach the entity state (live or restored).
+    """
+    return not (isinstance(value, float) and not math.isfinite(value))
+
+
 @dataclass(frozen=True, kw_only=True)
 class JustNimbusSensorDescription(SensorEntityDescription):
     """Describes a JustNimbus MQTT sensor."""
@@ -49,6 +68,12 @@ class JustNimbusSensorDescription(SensorEntityDescription):
     # True: start at 0 instead of "unknown" — for flow rates the device
     # only publishes while active, so "no message" genuinely means 0.
     default_zero: bool = False
+    # Minimum seconds between stored readings for fast MEASUREMENT sensors
+    # that the device emits every ~2s; None = store every change. The throttle
+    # is message-driven (drops readings that arrive too soon), so emission —
+    # and therefore the reservoir-temperature liveness signal — still stops
+    # the instant the device goes silent, while cutting stored points 15-60x.
+    min_interval: float | None = None
 
 
 SENSOR_DESCRIPTIONS: tuple[JustNimbusSensorDescription, ...] = (
@@ -60,6 +85,8 @@ SENSOR_DESCRIPTIONS: tuple[JustNimbusSensorDescription, ...] = (
         device_class=SensorDeviceClass.PRESSURE,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
+        # Pressure swings fastest and matters most for diagnostics; keep finer.
+        min_interval=15,
     ),
     JustNimbusSensorDescription(
         key="reservoir_temp",
@@ -69,6 +96,9 @@ SENSOR_DESCRIPTIONS: tuple[JustNimbusSensorDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
+        # Doubles as the liveness heartbeat: one reading/min still gives the
+        # 15-min offline check a wide margin (~15 points per window).
+        min_interval=60,
     ),
     JustNimbusSensorDescription(
         key="water_volume",
@@ -78,6 +108,7 @@ SENSOR_DESCRIPTIONS: tuple[JustNimbusSensorDescription, ...] = (
         device_class=SensorDeviceClass.VOLUME_STORAGE,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
+        min_interval=60,
     ),
     JustNimbusSensorDescription(
         key="water_height",
@@ -87,6 +118,7 @@ SENSOR_DESCRIPTIONS: tuple[JustNimbusSensorDescription, ...] = (
         device_class=SensorDeviceClass.DISTANCE,
         state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
+        min_interval=60,
     ),
     JustNimbusSensorDescription(
         key="waterflow_in",
@@ -252,6 +284,8 @@ class JustNimbusMqttSensor(RestoreSensor):
         self._entry_id = entry_id
         self._topic = f"{topic_prefix}/{description.topic_suffix}"
         self._attr_unique_id = f"{entry_id}_{description.key}"
+        # Monotonic timestamp of the last stored reading, for min_interval.
+        self._last_emit: float | None = None
         if description.default_zero:
             self._attr_native_value = 0.0
         self._attr_device_info = DeviceInfo(
@@ -264,8 +298,10 @@ class JustNimbusMqttSensor(RestoreSensor):
     async def async_added_to_hass(self) -> None:
         """Restore the last value, then register the dispatcher listener."""
         if (
-            last := await self.async_get_last_sensor_data()
-        ) is not None and last.native_value is not None:
+            (last := await self.async_get_last_sensor_data()) is not None
+            and last.native_value is not None
+            and _is_valid_native_value(last.native_value)
+        ):
             self._attr_native_value = last.native_value
 
         @callback
@@ -276,10 +312,27 @@ class JustNimbusMqttSensor(RestoreSensor):
                 self._attr_native_value = payload
             else:
                 try:
-                    self._attr_native_value = float(payload)
+                    value = float(payload)
                 except (ValueError, TypeError):
                     _LOGGER.warning("Invalid payload on %s: %r", self._topic, payload)
                     return
+                if not _is_valid_native_value(value):
+                    # Expected for hours after a device restart; keep the last
+                    # good value rather than crashing on a non-finite state.
+                    _LOGGER.debug(
+                        "Ignoring non-finite payload on %s: %r", self._topic, payload
+                    )
+                    return
+                interval = self.entity_description.min_interval
+                if interval is not None:
+                    now = _monotonic()
+                    if self._last_emit is not None and now - self._last_emit < interval:
+                        # Too soon since the last stored reading: drop it. The
+                        # gate is driven by incoming messages, so it self-clears
+                        # the moment the device falls silent (liveness intact).
+                        return
+                    self._last_emit = now
+                self._attr_native_value = value
             self.async_write_ha_state()
 
         self.async_on_remove(
@@ -322,7 +375,9 @@ class JustNimbusReservoirFillSensor(RestoreSensor):
 
     async def async_added_to_hass(self) -> None:
         """Restore the last value, then register the dispatcher listener."""
-        if (last := await self.async_get_last_sensor_data()) is not None:
+        if (
+            last := await self.async_get_last_sensor_data()
+        ) is not None and _is_valid_native_value(last.native_value):
             self._attr_native_value = last.native_value
 
         # No capacity configured ("unknown" reservoir): leave the state
@@ -338,6 +393,11 @@ class JustNimbusReservoirFillSensor(RestoreSensor):
                 volume_l = float(payload)
             except (ValueError, TypeError):
                 _LOGGER.warning("Invalid payload on %s: %r", self._topic, payload)
+                return
+            if not _is_valid_native_value(volume_l):
+                _LOGGER.debug(
+                    "Ignoring non-finite payload on %s: %r", self._topic, payload
+                )
                 return
             pct = volume_l / self._capacity_l * 100
             self._attr_native_value = round(min(100.0, max(0.0, pct)), 1)
